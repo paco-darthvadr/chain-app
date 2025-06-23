@@ -27,6 +27,16 @@ const Navbar = () => {
         </Link>
     </DropdownMenuItem>
     <DropdownMenuItem>
+        <Link href={'/users'}>
+        Users
+        </Link>
+    </DropdownMenuItem>
+    <DropdownMenuItem>
+        <Link href={'/games'}>
+        Games
+        </Link>
+    </DropdownMenuItem>
+    <DropdownMenuItem>
         <Link href={'/game'}>
         Game
         </Link>

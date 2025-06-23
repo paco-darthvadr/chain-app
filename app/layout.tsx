@@ -1,43 +1,32 @@
-import type { Metadata } from "next";
-import localFont from "next/font/local";
+import { Inter } from "next/font/google";
 import "./globals.css";
-import Navbar from "@/components/Navbar";
-import Sidebar from "@/components/Sidebar";
+import { cn } from "../lib/utils";
+import { ThemeProvider } from "@/components/theme-provider";
 
-const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
-  variable: "--font-geist-sans",
-  weight: "100 900",
-});
-const geistMono = localFont({
-  src: "./fonts/GeistMonoVF.woff",
-  variable: "--font-geist-mono",
-  weight: "100 900",
-});
+const inter = Inter({ subsets: ["latin"] });
 
-export const metadata: Metadata = {
+export const metadata = {
   title: "Chain App",
-  description: "Test PBaas app",
+  description: "Chain App",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
-    <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        {/* Layout UI */}
-        <Navbar/>
-        <div className="flex">
-          <div className="hidden md:block h-[100vh] w-[300px]">
-            <Sidebar/>
-          </div>
-          <div className="p-5 w-full md:max-w-[1140]">
-        {children}
-          </div>
-        </div>
+    <html lang="en" suppressHydrationWarning>
+      <body className={cn("min-h-screen w-full bg-background text-foreground flex", inter.className, {
+        "debug-screens": process.env.NODE_ENV === "development",
+      })}>
+        <ThemeProvider
+          attribute="data-theme"
+          defaultTheme="dark"
+          disableTransitionOnChange
+        >
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );

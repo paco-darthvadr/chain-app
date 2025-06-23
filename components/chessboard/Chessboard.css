@@ -10,6 +10,9 @@
 #chessboard .tile {
     width: 100px;
     height: 100px;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.2s ease;
 }
 
 #chessboard .black-tile {
@@ -18,4 +21,77 @@
 
 #chessboard .white-tile {
     background-color: #ebecd0;
+}
+
+#chessboard .tile.valid-move {
+    background-color: rgba(0, 255, 0, 0.2);
+}
+
+#chessboard .piece {
+    width: 100px;
+    height: 100px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    position: absolute;
+    top: 0;
+    left: 0;
+    cursor: grab;
+    transition: transform 0.2s ease;
+    user-select: none;
+}
+
+#chessboard .piece:hover {
+    transform: scale(1.05);
+}
+
+#chessboard .piece.selected {
+    transform: scale(1.1);
+    box-shadow: 0 0 10px rgba(255, 255, 0, 0.8);
+    z-index: 10;
+}
+
+#chessboard .piece:active {
+    cursor: grabbing;
+}
+
+.move-indicator {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background-color: rgba(0, 255, 0, 0.3);
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 5;
+}
+
+/* Attack indicator for pieces */
+.attack-indicator {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background-color: rgba(255, 0, 0, 0.3);
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    z-index: 5;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+        opacity: 0.8;
+    }
+    50% {
+        transform: scale(1.1);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 0.8;
+    }
 }

@@ -14,4 +14,8 @@ export class Position {
     clone(): Position {
         return new Position(this.x, this.y);
     }
+
+    withinBoard(): boolean {
+        return this.x >= 0 && this.x < 8 && this.y >= 0 && this.y < 8;
+    }
 }

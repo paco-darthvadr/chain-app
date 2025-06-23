@@ -11,7 +11,18 @@ export class Piece {
     constructor(position: Position, type: PieceType,
         team: TeamType, hasMoved: boolean,
         possibleMoves: Position[] = []) {
-        this.image = `../img/${type}_${team}.png`;
+        // Map piece types to correct image names based on actual files
+        const pieceTypeMap: { [key in PieceType]: string } = {
+            [PieceType.PAWN]: 'p',
+            [PieceType.ROOK]: 'r',
+            [PieceType.KNIGHT]: 'kn',
+            [PieceType.BISHOP]: 'b',
+            [PieceType.QUEEN]: 'q',
+            [PieceType.KING]: 'k'
+        };
+        
+        const teamSuffix = team === TeamType.OUR ? 'lt' : 'dk';
+        this.image = `/img/chess_${pieceTypeMap[type]}${teamSuffix}.png`;
         this.position = position;
         this.type = type;
         this.team = team;

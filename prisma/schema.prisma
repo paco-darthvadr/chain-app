@@ -1,0 +1,49 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  verusId   String   @unique
+  displayName String?
+  avatarUrl   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  gamesAsWhite Game[] @relation("WhitePlayer")
+  gamesAsBlack Game[] @relation("BlackPlayer")
+}
+
+model Game {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  whitePlayer   User     @relation("WhitePlayer", fields: [whitePlayerId], references: [id])
+  whitePlayerId String
+  blackPlayer   User     @relation("BlackPlayer", fields: [blackPlayerId], references: [id])
+  blackPlayerId String
+
+  // JSON string representing the board state
+  boardState Json
+  status     String   @default("IN_PROGRESS") // e.g., IN_PROGRESS, COMPLETED, ABORTED
+  winner     String? // 'WHITE', 'BLACK', 'DRAW'
+
+  moves Move[]
+}
+
+model Move {
+  id        String   @id @default(cuid())
+  game      Game     @relation(fields: [gameId], references: [id])
+  gameId    String
+  move      String   // e.g., "e2e4"
+  createdAt DateTime @default(now())
+}
