@@ -32,7 +32,7 @@ export async function getGamesForUser(userId: string) {
                     { whitePlayerId: userId },
                     { blackPlayerId: userId },
                 ],
-                status: 'IN_PROGRESS', // Only show active games
+                status: 'COMPLETED', // Only show active games
             },
             include: {
                 whitePlayer: true,

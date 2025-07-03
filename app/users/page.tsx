@@ -3,7 +3,7 @@
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Link from 'next/link';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { io, Socket } from 'socket.io-client';
 import { getUsers, getGamesForUser, deleteUser } from './actions';
@@ -33,7 +33,12 @@ function UsersPage() {
     const [challengeSent, setChallengeSent] = useState<string | null>(null); // Store opponentId
     const router = useRouter();
     
+    const isFetchingRef = useRef(false);
+
     const fetchUsersAndGames = useCallback(async (userId: string | null) => {
+        if (isFetchingRef.current) return;
+        isFetchingRef.current = true;
+
         const fetchedUsers = await getUsers();
         setUsers(fetchedUsers);
 
@@ -41,10 +46,8 @@ function UsersPage() {
             const savedUser = localStorage.getItem('currentUser');
             let newCurrentId = userId;
 
-            if (!newCurrentId) {
-                if (savedUser && fetchedUsers.find((u: User) => u.id === savedUser)) {
-                    newCurrentId = savedUser;
-                }
+            if (!newCurrentId && savedUser && fetchedUsers.find((u: User) => u.id === savedUser)) {
+                newCurrentId = savedUser;
             }
             
             if (newCurrentId && fetchedUsers.find((u: User) => u.id === newCurrentId)) {
@@ -54,9 +57,9 @@ function UsersPage() {
                 const games = await getGamesForUser(newCurrentId);
                 setUserGames(games);
             } else {
-                const remainingUsers = users.filter((u: User) => u.id !== userId);
-                const nextUser = remainingUsers.length > 0 ? remainingUsers[0].id : null;
-                await fetchUsersAndGames(nextUser);
+                setCurrentUserId(null);
+                localStorage.removeItem('currentUser');
+                setUserGames([]);
             }
         } else {
             setUsers([]);
@@ -64,6 +67,8 @@ function UsersPage() {
             localStorage.removeItem('currentUser');
             setUserGames([]);
         }
+
+        isFetchingRef.current = false;
     }, []);
     
     useEffect(() => {
@@ -221,42 +226,73 @@ function UsersPage() {
                 </div>
             )}
             <div className="container mx-auto p-4">
-                <div className="flex justify-between items-center mb-6">
-                    <div className="flex items-center gap-4">
-                        <h1 className="text-2xl font-bold">Users</h1>
-                        <Link href="/dev/create-user" passHref>
-                            <Button variant="outline">Create Test User</Button>
-                        </Link>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <span className="text-sm font-medium">Playing as:</span>
-                        <Select value={currentUserId || ''} onValueChange={(id) => fetchUsersAndGames(id)}>
-                            <SelectTrigger className="w-[280px]">
-                                <SelectValue placeholder="Select your identity" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {users.map((user: User) => (
-                                    <SelectItem key={user.id} value={user.id}>
+                {/* Top: Current User VerusID Card */}
+                <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+                    <div className="flex-1">
+                        {(() => {
+                            const currentUser = users.find(u => u.id === currentUserId);
+                            if (!currentUser) return null;
+                            return (
+                                <div className="bg-card border rounded-lg p-6 flex items-center gap-4 max-w-xl">
+                                    <Avatar className="h-14 w-14">
+                                        <AvatarImage src={currentUser.avatarUrl || undefined} alt={currentUser.displayName || currentUser.verusId} />
+                                        <AvatarFallback>{(currentUser.displayName || currentUser.verusId).substring(0, 2).toUpperCase()}</AvatarFallback>
+                                    </Avatar>
+                                    <div>
                                         <div className="flex items-center gap-2">
-                                            <Avatar className="h-5 w-5">
-                                                <AvatarImage src={user.avatarUrl || undefined} alt={user.displayName || user.verusId} />
-                                                <AvatarFallback>{(user.displayName || user.verusId).substring(0, 1).toUpperCase()}</AvatarFallback>
-                                            </Avatar>
-                                            <span>{user.displayName || user.verusId}</span>
+                                            <span className="text-lg font-bold">{currentUser.displayName || currentUser.verusId}</span>
+                                            <span className="text-green-600 text-xs font-semibold">(You)</span>
                                         </div>
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                                        <div className="text-xs font-mono text-muted-foreground break-all">{currentUser.verusId}</div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
                     </div>
                 </div>
-
-                <div className="grid md:grid-cols-2 gap-8">
-                    <div>
-                        <h2 className="text-xl font-semibold mb-4 border-b pb-2">All Users</h2>
-                        {users.length > 0 ? (
+                {/* Main Content: Games Played and Challenge a User */}
+                <div className="flex flex-col md:flex-row gap-8">
+                    {/* Games Played */}
+                    <div className="flex-1">
+                        <h2 className="text-xl font-semibold mb-4 border-b pb-2">Games Played</h2>
+                        {userGames.length > 0 ? (
                             <div className="flex flex-col gap-2">
-                                {users.map((user: User) => (
+                                {userGames.map(game => {
+                                    const opponent = game.whitePlayerId === currentUserId ? game.blackPlayer : game.whitePlayer;
+                                    const isWhite = game.whitePlayerId === currentUserId;
+                                    return (
+                                        <div key={game.id} className="flex items-center justify-between p-3 bg-card rounded-lg border">
+                                            <div className="flex items-center gap-3">
+                                                <Avatar>
+                                                    <AvatarImage src={opponent.avatarUrl || undefined} alt={opponent.displayName || opponent.verusId} />
+                                                    <AvatarFallback>{(opponent.displayName || opponent.verusId).substring(0, 2).toUpperCase()}</AvatarFallback>
+                                                </Avatar>
+                                                <div>
+                                                    <p className="font-semibold">{opponent.displayName || opponent.verusId}</p>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        You are {isWhite ? 'White' : 'Black'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <Link href={`/game/${game.id}`} passHref>
+                                                <Button variant="outline">View</Button>
+                                            </Link>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <div className="text-center py-10 border rounded-lg">
+                                <p className="text-muted-foreground">No games played yet.</p>
+                            </div>
+                        )}
+                    </div>
+                    {/* Challenge a User */}
+                    <div className="w-full md:w-1/3">
+                        <h2 className="text-xl font-semibold mb-4 border-b pb-2">Challenge a User</h2>
+                        <div className="flex flex-col gap-4">
+                            {users.filter(u => u.id !== currentUserId).length > 0 ? (
+                                users.filter(u => u.id !== currentUserId).map(user => (
                                     <div key={user.id} className="flex items-center justify-between p-3 bg-card rounded-lg border">
                                         <div className="flex items-center gap-3">
                                             <Avatar>
@@ -265,63 +301,23 @@ function UsersPage() {
                                             </Avatar>
                                             <div>
                                                 <p className="font-semibold">{user.displayName || user.verusId}</p>
-                                                <p className="text-sm text-muted-foreground font-mono">{user.verusId}</p>
+                                                <p className="text-xs text-muted-foreground font-mono">{user.verusId}</p>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            {currentUserId && user.id === currentUserId ? (
-                                                <span className="text-sm text-muted-foreground">(You)</span>
-                                            ) : null}
-                                            <Button 
-                                                onClick={() => handleChallenge(user.id)} 
-                                                disabled={isLoading || isDeleting || challengeSent === user.id || !!incomingChallenge || user.id === currentUserId}
-                                            >
-                                                {challengeSent === user.id ? 'Sent' : 'Challenge'}
-                                            </Button>
-                                            <Button variant="destructive" size="sm" onClick={() => handleDelete(user.id)} disabled={isDeleting}>
-                                                Delete
-                                            </Button>
-                                        </div>
+                                        <Button 
+                                            onClick={() => handleChallenge(user.id)} 
+                                            disabled={isLoading || isDeleting || challengeSent === user.id || !!incomingChallenge}
+                                        >
+                                            {challengeSent === user.id ? 'Sent' : 'Challenge'}
+                                        </Button>
                                     </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="text-center py-10 border rounded-lg">
-                                <p className="text-muted-foreground">No users found. Create one to get started.</p>
-                            </div>
-                        )}
-                    </div>
-
-                    <div>
-                        <h2 className="text-xl font-semibold mb-4 border-b pb-2">Your Active Games</h2>
-                        {userGames.length > 0 ? (
-                            <div className="flex flex-col gap-2">
-                                {userGames.map(game => {
-                                    const opponent = game.whitePlayerId === currentUserId ? game.blackPlayer : game.whitePlayer;
-                                    return (
-                                        <div key={game.id} className="flex items-center justify-between p-3 bg-card rounded-lg border">
-                                            <div className="flex items-center gap-3">
-                                                 <Avatar>
-                                                    <AvatarImage src={opponent.avatarUrl || undefined} alt={opponent.displayName || opponent.verusId} />
-                                                    <AvatarFallback>{(opponent.displayName || opponent.verusId).substring(0, 2).toUpperCase()}</AvatarFallback>
-                                                </Avatar>
-                                                <div>
-                                                    <p className="font-semibold">vs {opponent.displayName || opponent.verusId}</p>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        You are {game.whitePlayerId === currentUserId ? 'White' : 'Black'}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <Link href={`/game/${game.id}`} passHref>
-                                                <Button variant="outline">Join Game</Button>
-                                            </Link>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        ) : (
-                            <p className="text-muted-foreground text-center mt-8">No active games.</p>
-                        )}
+                                ))
+                            ) : (
+                                <div className="text-center py-10 border rounded-lg">
+                                    <p className="text-muted-foreground">No other users to challenge.</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>

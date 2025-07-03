@@ -134,3 +134,6 @@ Desktop.ini
 # Verus-specific sensitive files
 /app/utils/processedChallenges.json
 /app/utils/users.json
+
+# Prisma migrations
+/prisma/migrations/

@@ -32,22 +32,22 @@ export const ThemeSwitcher = () => {
                 <DropdownMenuItem onClick={() => setTheme("orange")}>
                     Orange
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setTheme("dark-orange")}>
+                <DropdownMenuItem onClick={() => setTheme("orange-dark")}>
                     Dark Orange
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setTheme("green")}>
                     Green
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setTheme("dark-green")}>
+                <DropdownMenuItem onClick={() => setTheme("green-dark")}>
                     Dark Green
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setTheme("blue")}>
                     Blue
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setTheme("dark-blue")}>
+                <DropdownMenuItem onClick={() => setTheme("blue-dark")}>
                     Dark Blue
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setTheme("dark-yellow")}>
+                <DropdownMenuItem onClick={() => setTheme("yellow-dark")}>
                     Dark Yellow
                 </DropdownMenuItem>
             </DropdownMenuContent>

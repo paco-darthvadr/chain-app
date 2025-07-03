@@ -3,14 +3,14 @@
 import Chessboard from '../../../components/chessboard/Chessboard';
 import MoveHistory from '../../../components/chessboard/MoveHistory';
 import PromotionDialog from '../../../components/chessboard/PromotionDialog';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { Piece } from '../../models/Piece';
 import { Position } from '../../models/Position';
 import { Board } from '../../models/Board';
 import { TeamType, PieceType } from '../../Types';
 import CapturedPiecesPanel from '@/components/chessboard/CapturedPiecesPanel';
-import { getGame, updateBoardState, declareWinner } from './actions';
+import { getGame, updateGame, endGame } from './actions';
 import { Pawn } from '../../models/Pawn';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -31,8 +31,6 @@ interface GameClientProps {
     game: any; // Using any for now due to Prisma type issues
 }
 
-let socket: Socket;
-
 // Function to hydrate plain JSON objects into class instances
 function createBoardFromState(state: any): Board {
     const hydratePiece = (p: any) => {
@@ -49,7 +47,7 @@ function createBoardFromState(state: any): Board {
 }
 
 const GameClient = ({ game }: GameClientProps) => {
-    const [gameState, setGame] = useState(game);
+    const [gameState, setGameState] = useState(game);
     const [board, setBoard] = useState<Board | null>(null);
     const [moves, setMoves] = useState<Move[]>([]);
     const [showPromotionDialog, setShowPromotionDialog] = useState(false);
@@ -58,74 +56,143 @@ const GameClient = ({ game }: GameClientProps) => {
         destination: Position;
     } | null>(null);
     const [currentPlayer, setCurrentPlayer] = useState<'white' | 'black' | null>(null);
-    const [playerVerusId, setPlayerVerusId] = useState<string>('');
+    const [playerVerusId, setPlayerVerusId] = useState<string>(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('currentUser') || '';
+        }
+        return '';
+    });
     const [gameResult, setGameResult] = useState<string | null>(null);
     const [winner, setWinner] = useState<any | null>(null);
     const [rematchOffered, setRematchOffered] = useState(false);
     const [incomingRematch, setIncomingRematch] = useState(false);
+    const [socket, setSocket] = useState<Socket | null>(null);
     const router = useRouter();
     
+    // Ref to track if we've already updated the game status to prevent duplicate database updates
+    const hasUpdatedGameStatus = useRef<boolean>(false);
+
     useEffect(() => {
         // Initialize socket connection
-        const socketURL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://192.168.0.162:3001';
-        socket = io(socketURL);
+        const socketURL = process.env.NEXT_PUBLIC_SOCKET_URL;
+        console.log('Connecting to socket server at:', socketURL); // Debug
+        const newSocket = io(socketURL);
+        setSocket(newSocket);
+
+        // Register user if playerVerusId is already known
+        if (playerVerusId) {
+            newSocket.emit('register-user', playerVerusId);
+            console.log('Registering user on socket connect:', playerVerusId);
+        }
 
         // Join the game-specific room
-        socket.emit('joinGameRoom', game.id);
+        newSocket.emit('joinGameRoom', gameState.id);
 
         // Listen for board updates from the server
-        socket.on('update-board-state', (newBoardState) => {
+        newSocket.on('update-board-state', (newBoardState) => {
             if (gameResult) return; // Don't update board if game is over
             console.log("Received board state update from server.");
             const newBoard = createBoardFromState(newBoardState);
             newBoard.calculateAllMoves();
             setBoard(newBoard);
             // Also update the main game object if necessary, for example, to get new totalTurns
-            setGame((prevGame: any) => ({ ...prevGame, boardState: newBoardState }));
+            setGameState((prevGame: any) => ({ ...prevGame, boardState: newBoardState }));
+            
+            // Update moves array if the board state includes moves
+            if (newBoardState.moves) {
+                setMoves(newBoardState.moves);
+            }
         });
 
-        socket.on('opponent-left', async ({ leaverId }) => {
+        newSocket.on('opponent-left', async ({ leaverId }) => {
             if (playerVerusId) {
-                const isOpponent = (currentPlayer === 'white' && game.blackPlayer.verusId === leaverId) ||
-                                 (currentPlayer === 'black' && game.whitePlayer.verusId === leaverId);
+                const isOpponent = (currentPlayer === 'white' && gameState.blackPlayer.verusId === leaverId) ||
+                                 (currentPlayer === 'black' && gameState.whitePlayer.verusId === leaverId);
                 
-                if (isOpponent) {
-                    const winnerData = currentPlayer === 'white' ? game.whitePlayer : game.blackPlayer;
+                if (isOpponent && !hasUpdatedGameStatus.current) {
+                    const winnerData = currentPlayer === 'white' ? gameState.whitePlayer : gameState.blackPlayer;
                     setWinner(winnerData);
                     setGameResult('walkover');
-                    await declareWinner(game.id, winnerData.id);
+                    
+                    // Update the game status in the database
+                    try {
+                        hasUpdatedGameStatus.current = true;
+                        const updatedGame = await endGame(gameState.id, currentPlayer === 'white' ? 'OUR' : 'OPPONENT');
+                        if (updatedGame) {
+                            setGameState(updatedGame); // Update local state with the database result
+                            console.log('Game marked as COMPLETED in database (opponent left)');
+                        } else {
+                            console.error('Failed to update game status in database (opponent left)');
+                            hasUpdatedGameStatus.current = false; // Reset on failure
+                        }
+                    } catch (error) {
+                        console.error('Error updating game status (opponent left):', error);
+                        hasUpdatedGameStatus.current = false; // Reset on error
+                    }
                 }
             }
         });
 
-        socket.on('rematch-offered', () => {
+        newSocket.on('rematch-offered', (payload) => {
+            console.log('Received rematch-offered:', payload);
             setIncomingRematch(true);
         });
 
-        socket.on('rematch-confirmed', ({ newGameId }) => {
+        newSocket.on('rematch-confirmed', ({ newGameId }) => {
             router.push(`/game/${newGameId}`);
         });
 
         return () => {
-            socket.emit('leave-game', { gameId: game.id });
-            socket.disconnect();
+            newSocket.emit('leave-game', { gameId: gameState.id });
+            newSocket.disconnect();
         };
-    }, [game.id, playerVerusId, currentPlayer, router]);
+    }, [gameState.id, playerVerusId, currentPlayer, router]);
 
     // Initialize and synchronize board state
     useEffect(() => {
-        if (game.boardState) {
-            const newBoard = createBoardFromState(game.boardState);
+        if (gameState.boardState) {
+            const newBoard = createBoardFromState(gameState.boardState);
             newBoard.calculateAllMoves();
             setBoard(newBoard);
             
+            // Load moves from board state if available
+            if (gameState.boardState.moves) {
+                setMoves(gameState.boardState.moves);
+            }
+            
             if (newBoard.winningTeam) {
-                const winnerData = newBoard.winningTeam === TeamType.OUR ? game.whitePlayer : game.blackPlayer;
+                const winnerData = newBoard.winningTeam === TeamType.OUR ? gameState.whitePlayer : gameState.blackPlayer;
                 setWinner(winnerData);
                 setGameResult('checkmate');
+                
+                // Ensure the game is marked as COMPLETED in the database if it's not already
+                if (gameState.status !== 'COMPLETED' && !hasUpdatedGameStatus.current) {
+                    const handleExistingGameEnd = async () => {
+                        try {
+                            hasUpdatedGameStatus.current = true;
+                            const updatedGame = await endGame(gameState.id, newBoard.winningTeam === TeamType.OUR ? 'OUR' : 'OPPONENT');
+                            if (updatedGame) {
+                                setGameState(updatedGame);
+                                console.log('Existing completed game marked as COMPLETED in database');
+                            }
+                        } catch (error) {
+                            console.error('Error updating existing completed game:', error);
+                            hasUpdatedGameStatus.current = false; // Reset on error
+                        }
+                    };
+                    handleExistingGameEnd();
+                }
             }
         }
-    }, [game.boardState, game.whitePlayer, game.blackPlayer]);
+    }, [gameState.boardState, gameState.whitePlayer, gameState.blackPlayer, gameState.status, gameState.id]);
+
+    useEffect(() => {
+        if (socket && playerVerusId && gameState.id) {
+            socket.emit('register-user', playerVerusId);
+            socket.emit('joinGameRoom', gameState.id);
+            console.log('Registering user and joining game room:', playerVerusId, gameState.id);
+        }
+    }, [socket, playerVerusId, gameState.id]);
 
     const formatPosition = (x: number, y: number) => {
         const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
@@ -159,12 +226,36 @@ const GameClient = ({ game }: GameClientProps) => {
     const isCheckmate = () => {
         if (!board) return false;
         if (board.winningTeam) {
-            const winnerData = board.winningTeam === TeamType.OUR ? game.whitePlayer : game.blackPlayer;
+            const winnerData = board.winningTeam === TeamType.OUR ? gameState.whitePlayer : gameState.blackPlayer;
             if (!winner) setWinner(winnerData);
             if (!gameResult) setGameResult('checkmate');
         }
         return board.winningTeam !== undefined;
     };
+
+    // Handle database update when checkmate is detected
+    useEffect(() => {
+        const handleGameEnd = async () => {
+            if (board?.winningTeam && gameState.status !== 'COMPLETED' && !hasUpdatedGameStatus.current) {
+                try {
+                    hasUpdatedGameStatus.current = true;
+                    const updatedGame = await endGame(gameState.id, board.winningTeam === TeamType.OUR ? 'OUR' : 'OPPONENT');
+                    if (updatedGame) {
+                        setGameState(updatedGame); // Update local state with the database result
+                        console.log('Game marked as COMPLETED in database');
+                    } else {
+                        console.error('Failed to update game status in database');
+                        hasUpdatedGameStatus.current = false; // Reset on failure
+                    }
+                } catch (error) {
+                    console.error('Error ending game:', error);
+                    hasUpdatedGameStatus.current = false; // Reset on error
+                }
+            }
+        };
+
+        handleGameEnd();
+    }, [board?.winningTeam, gameState.status, gameState.id]);
 
     async function handlePlayMove(newBoard: Board, move: Move) {
         if (gameResult) return; // Don't allow moves if game is over
@@ -196,9 +287,10 @@ const GameClient = ({ game }: GameClientProps) => {
             })),
             winningTeam: newBoard.winningTeam,
             currentTeam: newBoard.currentTeam,
+            moves: [...moves, move],
         };
         
-        const updatedGame = await updateBoardState(game.id, newBoardState);
+        const updatedGame = await updateGame(gameState.id, newBoardState);
 
         if (updatedGame && updatedGame.boardState) {
             // The server has confirmed the move and returned the new authoritative state.
@@ -206,11 +298,11 @@ const GameClient = ({ game }: GameClientProps) => {
             const authoritativeBoard = createBoardFromState(updatedGame.boardState);
             authoritativeBoard.calculateAllMoves();
             setBoard(authoritativeBoard);
-            setGame(updatedGame);
+            setGameState(updatedGame);
 
             // Emit the move to the other player
             if (socket) {
-                socket.emit('move-made', { gameId: game.id, boardState: updatedGame.boardState });
+                socket.emit('move-made', { gameId: gameState.id, boardState: updatedGame.boardState });
             }
         } else {
             // If the update failed, we should consider reverting the optimistic update.
@@ -218,23 +310,35 @@ const GameClient = ({ game }: GameClientProps) => {
             // refetching the game state or showing an error to the user.
             console.error("Failed to update board state on the server.");
             // Revert to the previous state by refetching
-            const pristineGame = await getGame(game.id);
+            const pristineGame = await getGame(gameState.id);
             if (pristineGame && pristineGame.boardState) {
                 const pristineBoard = createBoardFromState(pristineGame.boardState);
                 pristineBoard.calculateAllMoves();
                 setBoard(pristineBoard);
-                setGame(pristineGame);
+                setGameState(pristineGame);
             }
         }
     }
 
     const handleRematch = () => {
+        console.log('Rematch button clicked');
         setRematchOffered(true);
-        socket.emit('rematch-offer', { gameId: game.id });
+        let opponentId = null;
+        if (currentPlayer === 'white') {
+            opponentId = gameState.blackPlayer.id;
+        } else if (currentPlayer === 'black') {
+            opponentId = gameState.whitePlayer.id;
+        }
+        console.log('Emitting rematch-offer', { gameId: gameState.id, opponentId, socketConnected: !!socket });
+        if (!socket) {
+            console.error('Socket not connected!');
+            return;
+        }
+        socket.emit('rematch-offer', { gameId: gameState.id, opponentId });
     };
 
     const handleAcceptRematch = () => {
-        socket.emit('rematch-accept', { gameId: game.id });
+        socket?.emit('rematch-accept', { gameId: gameState.id });
     };
 
     const handlePromotion = (promotionType: PieceType) => {
@@ -325,16 +429,22 @@ const GameClient = ({ game }: GameClientProps) => {
     const currentTurn = getCurrentTurn();
 
     // Function to handle player identification
-    const handlePlayerSelect = (verusId: string) => {
-        const selectedUser = verusId === game.whitePlayer.verusId ? game.whitePlayer : game.blackPlayer;
-        setPlayerVerusId(selectedUser.displayName || selectedUser.verusId);
+    const handlePlayerSelect = (userId: string) => {
+        const selectedUser = userId === gameState.whitePlayer.id ? gameState.whitePlayer : gameState.blackPlayer;
+        setPlayerVerusId(selectedUser.id);
+        localStorage.setItem('currentUser', selectedUser.id);
 
-        if (verusId === game.whitePlayer.verusId) {
+        if (userId === gameState.whitePlayer.id) {
             setCurrentPlayer('white');
-        } else if (verusId === game.blackPlayer.verusId) {
+        } else if (userId === gameState.blackPlayer.id) {
             setCurrentPlayer('black');
         } else {
             setCurrentPlayer(null);
+        }
+        // Register user on player select
+        if (socket) {
+            socket.emit('register-user', userId);
+            console.log('Registering user after player select:', userId);
         }
     };
     
@@ -348,10 +458,10 @@ const GameClient = ({ game }: GameClientProps) => {
                         Select your profile to begin the game.
                     </p>
                     <div className="flex justify-around gap-4">
-                        {[game.whitePlayer, game.blackPlayer].map((player, index) => (
+                        {[gameState.whitePlayer, gameState.blackPlayer].map((player, index) => (
                             <button 
                                 key={player.id}
-                                onClick={() => handlePlayerSelect(player.verusId)}
+                                onClick={() => handlePlayerSelect(player.id)}
                                 className="flex flex-col items-center gap-3 p-6 rounded-lg border hover:bg-muted w-1/2"
                             >
                                 <Avatar className="w-16 h-16">
@@ -369,19 +479,20 @@ const GameClient = ({ game }: GameClientProps) => {
     }
   
     if (!board) {
-        return <div className="flex justify-center items-center h-screen">Loading Game {game.id}...</div>;
+        return <div className="flex justify-center items-center h-screen">Loading Game {gameState.id}...</div>;
     }
   
     return (
         <div className="flex flex-col md:flex-row gap-4 p-4 max-w-7xl mx-auto">
-            {winner && gameResult && (
+            {gameState.status === 'COMPLETED' && (
                 <GameOver 
-                    winnerName={winner.displayName || winner.verusId}
+                    game={gameState}
+                    winnerName={winner?.displayName || winner?.verusId || 'Unknown'}
                     onRematch={handleRematch}
                     rematchOffered={rematchOffered}
                 />
             )}
-            {incomingRematch && !gameResult && (
+            {incomingRematch && (
                  <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
                      <div className="bg-card p-8 rounded-lg shadow-xl text-center border">
                          <h2 className="text-2xl font-bold mb-4">Your opponent offers a rematch!</h2>
@@ -393,29 +504,60 @@ const GameClient = ({ game }: GameClientProps) => {
                  </div>
             )}
             <div className="md:w-auto">
-                <div className="mb-4 p-4 bg-card rounded-lg border shadow-sm text-center">
+                {/* <div className="mb-4 p-4 bg-card rounded-lg border shadow-sm text-center">
                     <h2 className="text-xl font-semibold">
                         {game.whitePlayer.displayName || game.whitePlayer.verusId} (White) vs {game.blackPlayer.displayName || game.blackPlayer.verusId} (Black)
                     </h2>
                     <p className="text-sm font-medium mt-1">
                         You are: <span className="font-bold">{playerVerusId} ({currentPlayer})</span>
                     </p>
+                </div> */}
+                <div className="flex flex-row items-center justify-center gap-8 mx-auto">
+                    {/* <CapturedPiecesPanel capturedPieces={board.capturedPieces} /> */}
+                    <div className="flex flex-col items-center gap-4">
+                        {/* Player Avatars */}
+                        {/* <div className="flex items-center justify-between w-full gap-8 mb-4">
+                            <div className="flex items-center gap-3">
+                                <Avatar className="h-12 w-12">
+                                    <AvatarImage src={game.whitePlayer.avatarUrl || undefined} alt={game.whitePlayer.displayName || game.whitePlayer.verusId} />
+                                    <AvatarFallback>{(game.whitePlayer.displayName || game.whitePlayer.verusId).substring(0, 2).toUpperCase()}</AvatarFallback>
+                                </Avatar>
+                                <div className="text-center">
+                                    <p className="font-semibold text-sm">{game.whitePlayer.displayName || game.whitePlayer.verusId}</p>
+                                    <p className="text-xs text-muted-foreground">White</p>
+                                </div>
+                            </div>
+                            <div className="text-center">
+                                <p className="text-lg font-bold">VS</p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <div className="text-center">
+                                    <p className="font-semibold text-sm">{game.blackPlayer.displayName || game.blackPlayer.verusId}</p>
+                                    <p className="text-xs text-muted-foreground">Black</p>
+                                </div>
+                                <Avatar className="h-12 w-12">
+                                    <AvatarImage src={game.blackPlayer.avatarUrl || undefined} alt={game.blackPlayer.displayName || game.blackPlayer.verusId} />
+                                    <AvatarFallback>{(game.blackPlayer.displayName || game.blackPlayer.verusId).substring(0, 2).toUpperCase()}</AvatarFallback>
+                                </Avatar>
+                            </div>
+                        </div> */}
+                        
+                        <Chessboard pieces={board.pieces} playMove={playMove} />
+                    </div>
                 </div>
-                <Chessboard
-                    pieces={board.pieces}
-                    playMove={playMove}
-                />
             </div>
-            <div className="md:w-80 flex flex-col gap-4">
-                <MoveHistory 
-                    moves={moves} 
-                    currentTurn={getCurrentTurn()} 
-                    isCheck={isCheck()} 
-                    isCheckmate={isCheckmate()} 
-                />
-                <CapturedPiecesPanel 
-                    capturedPieces={board.capturedPieces}
-                />
+            <div className="flex flex-row gap-6 ml-auto" style={{ minWidth: '400px', maxWidth: '500px' }}>
+                <div style={{ width: '320px' }}>
+                    <MoveHistory 
+                        moves={moves} 
+                        currentTurn={getCurrentTurn()} 
+                        isCheck={isCheck()} 
+                        isCheckmate={isCheckmate()} 
+                        whitePlayer={gameState.whitePlayer}
+                        blackPlayer={gameState.blackPlayer}
+                    />
+                </div>
+
             </div>
             <PromotionDialog 
                 isVisible={showPromotionDialog && !gameResult}

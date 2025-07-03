@@ -1,12 +1,8 @@
 import { VerusIdInterface, primitives } from 'verusid-ts-client';
 import { randomBytes } from 'crypto';
 import { I_ADDR_VERSION } from 'verus-typescript-primitives/dist/constants/vdxf.js';
-import axios from 'axios';
 import 'dotenv/config';
 
-const VERUS_RPC_NETWORK = process.env.TESTNET == 'true' ? process.env.TESTNET_VERUS_RPC_NETWORK : process.env.MAINNET_VERUS_RPC_NETWORK
-const VERUS_RPC_SYSTEM = process.env.TESTNET == 'true' ? "iJhCezBExJHvtyH3fGhNnt2NhU4Ztkf2yq" : "i5w5MuNik5NtLcYmNzcvaoixooEebB6MGV" ;
-const VerusId = new VerusIdInterface(VERUS_RPC_SYSTEM, VERUS_RPC_NETWORK);
 
 function generateChallengeID(len = 20) {
   const buf = randomBytes(len)
@@ -15,66 +11,84 @@ function generateChallengeID(len = 20) {
   return iaddress
 }
 
+const VERUS_RPC_NETWORK = `http://${process.env.VERUS_RPC_USER}:${process.env.VERUS_RPC_PASSWORD}@${process.env.VERUS_RPC_HOST || '127.0.0.1'}:${process.env.VERUS_RPC_PORT || 18843}`;
+const VERUS_RPC_SYSTEM = process.env.VERUS_RPC_SYSTEM;
+const VerusId = new VerusIdInterface(VERUS_RPC_SYSTEM, VERUS_RPC_NETWORK);
 
-const VALU_LOGIN_IADDRESS = process.env.TESTNET == 'true' ? process.env.TESTNET_VALU_LOGIN_IADDRESS : process.env.MAINNET_VALU_LOGIN_IADDRESS
-const LOGIN_URL = process.env.TESTNET_LOGIN_URL
-const VALU_LOGIN_WIF = process.env.TESTNET == 'true' ? process.env.TESTNET_VALU_LOGIN_WIF : process.env.MAINNET_VALU_LOGIN_WIF
+const VERUS_LOGIN_IADDRESS = process.env.TESTNET == 'true'
+  ? process.env.VERUS_LOGIN_IADDRESS
+  : process.env.MAINNET_VERUS_LOGIN_IADDRESS;
+
+const LOGIN_URL = process.env.TESTNET == 'true'
+  ? process.env.TESTNET_LOGIN_URL
+  : process.env.MAINNET_LOGIN_URL;
+
+if (!LOGIN_URL) {
+  console.log(`LOGIN_URL: ${LOGIN_URL}`);
+  throw new Error('LOGIN_URL is not set in the environment variables!');
+}
+
+const VERUS_SIGNING_WIF = process.env.TESTNET == 'true'
+  ? process.env.VERUS_SIGNING_WIF
+  : process.env.MAINNET_VERUS_LOGIN_WIF;
+
+if (!VERUS_SIGNING_WIF) {
+  console.log(`VERUS_SIGNING_WIF: ${VERUS_SIGNING_WIF}`);
+  throw new Error('VERUS_SIGNING_WIF is not set in the environment variables!');
+}
+
+if (!VERUS_LOGIN_IADDRESS) {
+  console.log(`VERUS_LOGIN_IADDRESS: ${VERUS_LOGIN_IADDRESS}`);
+  throw new Error('VERUS_LOGIN_IADDRESS is not set in the environment variables!');
+}
+
+// Validate I-address format
+if (!VERUS_LOGIN_IADDRESS.startsWith('i')) {
+  throw new Error('VERUS_LOGIN_IADDRESS must be a valid I-address starting with "i"');
+}
+
+console.log('Environment Configuration:');
+console.log('  TESTNET:', process.env.TESTNET);
+console.log('  VERUS_LOGIN_IADDRESS:', VERUS_LOGIN_IADDRESS);
+console.log('  VERUS_SIGNING_WIF format:', VERUS_SIGNING_WIF.substring(0, 10) + '...');
+console.log('  LOGIN_URL:', LOGIN_URL);
+console.log('  VERUS_RPC_SYSTEM:', VERUS_RPC_SYSTEM);
+
+// Prisma-based shortener
+const shortenUrl = async (longUrl) => {
+  return await createShortUrl(longUrl);
+};
 
 // Login DEEPLINK
-const getverified = async (userid) => {
-
+const getverified = async () => {
   try {
     const challenge_id = generateChallengeID();
-    console.log(challenge_id)
-
     const response = await VerusId.createLoginConsentRequest(
-      VALU_LOGIN_IADDRESS,
+      VERUS_LOGIN_IADDRESS,
       new primitives.LoginConsentChallenge({
         challenge_id: challenge_id,
         requested_access: [
           new primitives.RequestedPermission(primitives.IDENTITY_VIEW.vdxfid),
         ],
         redirect_uris: [ new primitives.RedirectUri(
-          `${LOGIN_URL}/login?id=${userid}`, 
+          `${LOGIN_URL}/api/login/verify?id=${challenge_id}`,
           primitives.LOGIN_CONSENT_WEBHOOK_VDXF_KEY.vdxfid
-        ),
-        ],
+        )],
         created_at: Number((Date.now() / 1000).toFixed(0)),
       }),
-      VALU_LOGIN_WIF
+      VERUS_SIGNING_WIF
     );
+    if (!response || typeof response.toWalletDeeplinkUri !== 'function') {
+      throw new Error('Invalid response from createLoginConsentRequest');
+    }
+    const deeplink = response.toWalletDeeplinkUri();
 
-    console.log(response.toWalletDeeplinkUri())
-    console.log(response)
-    return response.toWalletDeeplinkUri();
-    
+    return { deeplink, challenge_id };
   } catch (e) {
-    console.log(e);
-  }
-
-};
-
-const getVerifiedTinyUrl = async (deepLinkUrl) => {
-
-  try {
-      const response = await axios.post('https://api.tinyurl.com/create', {
-          url: deepLinkUrl
-      }, {
-          headers: {
-              'Authorization': `Bearer ${process.env.TINYURLTOKEN}`
-          }
-      });
-
-      // Send the response from the TinyURL service back to the user
-      return response.data.data.tiny_url;
-  } catch (error) {
-      console.error(error);
-      throw new Error('Error creating TinyURL');
+    console.log('Error in getverified:', e);
+    throw e;
   }
 };
-
 
 const _getverified = getverified;
-export { _getverified as getverified };
-const _getVerifiedTinyUrl = getVerifiedTinyUrl;
-export { _getVerifiedTinyUrl as getVerifiedTinyUrl };
+export { _getverified as getverified, shortenUrl };

@@ -37,6 +37,11 @@ model Game {
   status     String   @default("IN_PROGRESS") // e.g., IN_PROGRESS, COMPLETED, ABORTED
   winner     String? // 'WHITE', 'BLACK', 'DRAW'
 
+  // Blockchain storage tracking
+  blockchainTxId      String? // Transaction ID on Verus blockchain
+  blockchainVdxfKey   String? // VDXF key used for storage
+  blockchainStoredAt  DateTime? // When the game was stored on blockchain
+
   moves Move[]
 }
 
@@ -45,5 +50,11 @@ model Move {
   game      Game     @relation(fields: [gameId], references: [id])
   gameId    String
   move      String   // e.g., "e2e4"
+  createdAt DateTime @default(now())
+}
+
+model ProcessedChallenge {
+  id        String   @id
+  data      Json
   createdAt DateTime @default(now())
 }

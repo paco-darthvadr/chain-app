@@ -1,59 +1,76 @@
-// This file is now a client-side utility for API calls, so 'use server' is not needed.
+'use server';
 
-const getBaseUrl = () => {
-    return process.env.NEXT_PUBLIC_APP_URL || 'http://192.168.0.162:3000';
-};
+import { prisma } from '@/lib/prisma';
+import { revalidatePath } from 'next/cache';
 
 export async function getGame(gameId: string) {
     try {
-        const res = await fetch(`${getBaseUrl()}/api/game/${gameId}`);
-        if (!res.ok) {
-            throw new Error('Failed to fetch game');
-        }
-        return await res.json();
+        const game = await prisma.game.findUnique({
+            where: { id: gameId },
+            include: {
+                whitePlayer: true,
+                blackPlayer: true,
+            },
+        });
+        return game;
     } catch (error) {
         console.error('Error fetching game:', error);
         return null;
     }
 }
 
-export async function updateBoardState(gameId: string, boardState: any) {
+export async function updateGame(gameId: string, boardState: any) {
     try {
-        const res = await fetch(`${getBaseUrl()}/api/game/${gameId}`, {
-            method: 'PATCH',
-            headers: {
-                'Content-Type': 'application/json',
+        const game = await prisma.game.update({
+            where: { id: gameId },
+            data: { 
+                boardState,
+                updatedAt: new Date()
             },
-            body: JSON.stringify({ boardState }),
+            include: {
+                whitePlayer: true,
+                blackPlayer: true,
+            },
         });
-        if (!res.ok) {
-            throw new Error('Failed to update board state');
-        }
-        return await res.json();
+        revalidatePath(`/game/${gameId}`);
+        return game;
     } catch (error) {
-        console.error('Error updating board state:', error);
+        console.error('Error updating game:', error);
         return null;
     }
 }
 
-export async function declareWinner(gameId: string, winnerId: string) {
+export async function endGame(gameId: string, winningTeam: 'OUR' | 'OPPONENT' | 'DRAW') {
     try {
-        const res = await fetch(`${getBaseUrl()}/api/game/${gameId}`, {
-            method: 'PATCH',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
+        // Fetch the game to get player IDs
+        const existingGame = await prisma.game.findUnique({
+            where: { id: gameId },
+            include: { whitePlayer: true, blackPlayer: true },
+        });
+
+        let winnerId: string | null = null;
+        if (winningTeam === 'OUR') {
+            winnerId = existingGame?.whitePlayerId ?? null;
+        } else if (winningTeam === 'OPPONENT') {
+            winnerId = existingGame?.blackPlayerId ?? null;
+        } // DRAW => winnerId stays null
+
+        const game = await prisma.game.update({
+            where: { id: gameId },
+            data: { 
                 status: 'COMPLETED',
                 winner: winnerId,
-            }),
+                updatedAt: new Date()
+            },
+            include: {
+                whitePlayer: true,
+                blackPlayer: true,
+            },
         });
-        if (!res.ok) {
-            throw new Error('Failed to declare winner');
-        }
-        return await res.json();
+        revalidatePath(`/game/${gameId}`);
+        return game;
     } catch (error) {
-        console.error('Error declaring winner:', error);
+        console.error('Error ending game:', error);
         return null;
     }
-} 
+}  

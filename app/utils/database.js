@@ -1,28 +1,22 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { normalize, join } from 'node:path';
+import { prisma } from '@/lib/prisma';
 
 
 const DATA_FILE = normalize(join(__dirname, 'processedChallenges.json'));
 const USERS = normalize(join(__dirname, 'users.json'));
 
-function getProcessedChallenges(id) {
-  let processedChallenges = new Map();
-  if (existsSync(DATA_FILE)) {
-    const data = readFileSync(DATA_FILE, 'utf8');
-    processedChallenges = new Map(JSON.parse(data));
-  }
-  return processedChallenges.get(id);
+export async function getProcessedChallenges(id) {
+  const record = await prisma.processedChallenge.findUnique({ where: { id } });
+  return record ? record.data : undefined;
 }
 
-function setProcessedChallenges(id, challenge) {
-  let processedChallenges = new Map();
-  if (existsSync(DATA_FILE)) {
-    const data = readFileSync(DATA_FILE, 'utf8');
-    processedChallenges = new Map(JSON.parse(data));
-  }
-  processedChallenges.set(id, challenge);
-  const data = JSON.stringify(Array.from(processedChallenges.entries()), null, 2);
-  writeFileSync(DATA_FILE, data);
+export async function setProcessedChallenges(id, challenge) {
+  await prisma.processedChallenge.upsert({
+    where: { id },
+    update: { data: challenge },
+    create: { id, data: challenge },
+  });
 }
 
 function getUsers() {
@@ -85,10 +79,6 @@ function deleteUser(user) {
   writeFileSync(USERS, data);
 }
 
-const _getProcessedChallenges = getProcessedChallenges;
-export { _getProcessedChallenges as getProcessedChallenges };
-const _setProcessedChallenges = setProcessedChallenges;
-export { _setProcessedChallenges as setProcessedChallenges };
 const _getUsers = getUsers;
 export { _getUsers as getUsers };
 const _setUsers = setUsers;

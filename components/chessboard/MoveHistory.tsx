@@ -1,6 +1,8 @@
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
+import { useRef, useEffect } from 'react';
 
 interface Move {
     piece: string;
@@ -11,22 +13,39 @@ interface Move {
     promotion?: string;
 }
 
+interface Player {
+    id: string;
+    verusId: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+}
+
 interface MoveHistoryProps {
     moves: Move[];
     currentTurn: 'w' | 'b';
     isCheck?: boolean;
     isCheckmate?: boolean;
+    whitePlayer?: Player;
+    blackPlayer?: Player;
 }
 
-const MoveHistory = ({ moves, currentTurn, isCheck, isCheckmate }: MoveHistoryProps) => {
+const MoveHistory = ({ moves, currentTurn, isCheck, isCheckmate, whitePlayer, blackPlayer }: MoveHistoryProps) => {
     const formatPosition = (x: number, y: number) => {
         const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
         const ranks = ['8', '7', '6', '5', '4', '3', '2', '1'];
         return `${files[x]}${ranks[y]}`;
     };
 
+    const scrollRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+    }, [moves]);
+
     return (
-        <Card className="w-80 h-96 bg-card border-border">
+        <Card className="w-80 bg-card border-border">
             <CardHeader className="border-b border-border">
                 <CardTitle className="text-lg text-foreground">Move History</CardTitle>
                 <div className="text-sm flex items-center justify-between">
@@ -44,20 +63,25 @@ const MoveHistory = ({ moves, currentTurn, isCheck, isCheckmate }: MoveHistoryPr
                 </div>
             </CardHeader>
             <CardContent className="bg-card p-0">
-                <div className="h-full overflow-y-auto">
+                <div ref={scrollRef} className="h-[600px] overflow-y-auto">
                     {moves.length === 0 ? (
                         <p className="text-gray-400 text-center mt-8">No moves yet</p>
                     ) : (
                         <div className="space-y-2">
                             {moves.map((move, index) => {
                                 const isWhiteMove = index % 2 === 0;
+                                const player = isWhiteMove ? whitePlayer : blackPlayer;
                                 return (
                                     <div
                                         key={index}
-                                        className={`p-2 ${
+                                        className={`p-2 flex items-center gap-2 ${
                                             isWhiteMove ? 'bg-background' : 'bg-secondary'
                                         }`}
                                     >
+                                        <Avatar className="h-6 w-6">
+                                            <AvatarImage src={player?.avatarUrl || undefined} alt={player?.displayName || player?.verusId} />
+                                            <AvatarFallback className="text-xs">{(player?.displayName || player?.verusId || '?').substring(0, 1).toUpperCase()}</AvatarFallback>
+                                        </Avatar>
                                         <span className="text-foreground">{`${
                                             index + 1
                                         }. ${move.piece} ${move.from}-${move.to}`}</span>

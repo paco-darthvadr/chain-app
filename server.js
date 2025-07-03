@@ -1,11 +1,17 @@
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 require('dotenv').config();
+const fetch = (...args) => import('node-fetch').then(mod => mod.default(...args));
 
 const allowedOrigins = [
   'http://localhost:3000', // for local development
+  'http://localhost:3001', // for Next.js on port 3001
   'http://192.168.0.162:3000', // for your specific IP
+  'http://192.168.0.162:3001', // for your specific IP on port 3001
   'http://127.0.0.1:3000', // for localhost alternative
+  'http://127.0.0.1:3001', // for localhost alternative on port 3001
+  'https://dev.verus-timelock.xyz', // production frontend
+  'https://socket.verus-timelock.xyz' // production socket
 ];
 if (process.env.CLIENT_URL) {
   allowedOrigins.push(process.env.CLIENT_URL);
@@ -32,12 +38,14 @@ const rooms = {}; // { [roomId]: string[] }
 const userSockets = {}; // { [userId]: socketId }
 
 io.on('connection', (socket) => {
-  console.log(`A user connected: ${socket.id}`);
+  console.log(`🔌 A user connected: ${socket.id}`);
+  console.log(`📊 Total connections: ${Object.keys(io.sockets.sockets).length}`);
 
   socket.on('register-user', (userId) => {
     userSockets[userId] = socket.id;
     socket.userId = userId; // Store on the socket for easy lookup on disconnect
-    console.log(`User ${userId} registered with socket ${socket.id}`);
+    console.log(`✅ User ${userId} registered with socket ${socket.id}`);
+    console.log('📋 Current registered users:', Object.keys(userSockets));
   });
 
   socket.on('joinRoom', ({ roomId, userId }) => {
@@ -64,13 +72,18 @@ io.on('connection', (socket) => {
   });
 
   socket.on('challenge-user', ({ challengerId, challengerName, challengeeId }) => {
+    console.log(`Challenge attempt: ${challengerName} (${challengerId}) challenging ${challengeeId}`);
+    console.log('Available users:', Object.keys(userSockets));
+    
     const challengeeSocketId = userSockets[challengeeId];
     if (challengeeSocketId) {
+        console.log(`Sending challenge to ${challengeeId} at socket ${challengeeSocketId}`);
         io.to(challengeeSocketId).emit('new-challenge', {
             challengerId: challengerId,
             challengerName: challengerName
         });
     } else {
+        console.log(`User ${challengeeId} not found in userSockets`);
         socket.emit('challenge-failed', { message: 'User is not online or available for challenges.' });
     }
   });
@@ -118,16 +131,28 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('rematch-offer', ({ gameId }) => {
-    // Notify the other player in the room that a rematch has been offered
-    socket.to(gameId).emit('rematch-offered');
+  socket.on('rematch-offer', ({ gameId, opponentId }) => {
+    let sentDirect = false;
+    if (opponentId && userSockets[opponentId]) {
+      const opponentSocketId = userSockets[opponentId];
+      io.to(opponentSocketId).emit('rematch-offered', { gameId });
+      sentDirect = true;
+      console.log(`Rematch offer sent directly to opponent ${opponentId} at socket ${opponentSocketId}`);
+    }
+    // Always emit to the room as a backup (excluding sender)
+    socket.to(gameId).emit('rematch-offered', { gameId });
+    if (!sentDirect) {
+      console.log(`Rematch offer sent to room ${gameId}`);
+    } else {
+      console.log(`Rematch offer also sent to room ${gameId} as backup`);
+    }
   });
 
   socket.on('rematch-accept', async ({ gameId }) => {
     // To create a new game, we need the original player IDs.
     // This requires an API call to our own app to get the game details.
     try {
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://192.168.0.162:3000';
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL;
       const response = await fetch(`${appUrl}/api/game/${gameId}`);
       if (!response.ok) throw new Error('Failed to fetch original game data');
       
@@ -138,11 +163,13 @@ io.on('connection', (socket) => {
         whitePlayerId: originalGame.blackPlayerId,
         blackPlayerId: originalGame.whitePlayerId,
       };
+      const bodyString = JSON.stringify(newGameData);
+      console.log('Rematch newGameData:', newGameData, bodyString);
 
       const createResponse = await fetch(`${appUrl}/api/game`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newGameData),
+        body: bodyString,
       });
 
       if (!createResponse.ok) throw new Error('Failed to create new game');
@@ -189,7 +216,7 @@ io.on('connection', (socket) => {
 
 });
 
-const PORT = 3001;
+const PORT = 3002;
 httpServer.listen(PORT, () => {
   console.log(`Socket.IO server listening on port ${PORT}`);
-}); 
+});

@@ -8,7 +8,7 @@ import {
 
 export const SidebarItems = [
     {
-        href: "/",
+        href: "/dashboard",
         label: "Dashboard",
         icon: LayoutDashboard,
     },
