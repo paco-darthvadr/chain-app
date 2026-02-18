@@ -15,7 +15,7 @@ export default function CreateUserPage() {
     const router = useRouter();
 
     useEffect(() => {
-        const socketURL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://192.168.0.162:3001';
+        const socketURL = process.env.NEXT_PUBLIC_SOCKET_URL;
         socket = io(socketURL);
         return () => {
             if (socket) socket.disconnect();

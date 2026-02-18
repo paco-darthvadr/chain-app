@@ -16,7 +16,7 @@ export default function GameList({ initialGames }: { initialGames: any[] }) {
   }, [initialGames]);
 
   useEffect(() => {
-    const socket = io(process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'http://192.168.0.162:3001');
+    const socket = io(process.env.NEXT_PUBLIC_WEBSOCKET_URL);
 
     socket.on('connect', () => {
       console.log('Connected to WebSocket server for game list updates.');

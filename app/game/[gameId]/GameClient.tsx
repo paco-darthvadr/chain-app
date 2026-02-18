@@ -104,6 +104,13 @@ const GameClient = ({ game }: GameClientProps) => {
             if (newBoardState.moves) {
                 setMoves(newBoardState.moves);
             }
+
+            // Play sound on opponent moves
+            try {
+                new Audio('/sounds/move.mp3').play();
+            } catch (error) {
+                console.error('Error playing move sound:', error);
+            }
         });
 
         newSocket.on('opponent-left', async ({ leaverId }) => {
@@ -265,6 +272,13 @@ const GameClient = ({ game }: GameClientProps) => {
         // Optimistically update the board for a smoother UI feel, but the server is the source of truth.
         setBoard(newBoard);
         setMoves(prev => [...prev, move]);
+
+        // Play sound on move
+        try {
+            new Audio('/sounds/move.mp3').play();
+        } catch (error) {
+            console.error('Error playing move sound:', error);
+        }
 
         // Create a plain object for the board state to send as JSON
         const newBoardState = {

@@ -88,6 +88,13 @@ const Game = () => {
             
             // Add move to history
             setMoves(prev => [...prev, move]);
+                        
+            // Play sound on move
+            try {
+                new Audio('/sounds/move.mp3').play();
+            } catch (error) {
+                console.error('Error playing move sound:', error);
+            }
             
             console.log(`Pawn promoted to ${promotionType}!`);
         }
@@ -174,6 +181,13 @@ const Game = () => {
             
             // Add move to history
             setMoves(prev => [...prev, move]);
+
+            // Play sound on move
+            try {
+                new Audio('/sounds/move.mp3').play();
+            } catch (error) {
+                console.error('Error playing move sound:', error);
+            }
             
             console.log(`Move successful! ${piece.type} moved to ${position.x},${position.y}`);
             if (isCapture) {

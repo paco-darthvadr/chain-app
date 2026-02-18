@@ -78,7 +78,7 @@ function UsersPage() {
         console.log('Verifying NEXT_PUBLIC_APP_URL:', process.env.NEXT_PUBLIC_APP_URL);
         
         const socketInitializer = async () => {
-            const socketURL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://192.168.0.162:3001';
+            const socketURL = process.env.NEXT_PUBLIC_SOCKET_URL;
             socket = io(socketURL);
 
             socket.on('connect', () => {

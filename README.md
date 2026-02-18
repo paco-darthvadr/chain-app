@@ -37,10 +37,17 @@ Chain App is a full-stack chess application with blockchain integration. It allo
 3. **Configure environment variables:**
    - Copy `.env.example` to `.env` and fill in the required values (database URL, etc).
 
+   - Change the CORS URL's in the server.js to your own
+
 4. **Set up the database:**
-   - Create your database (e.g., in PostgreSQL):
+   - Create your database (I use only a file for the DB for testing):
      ```sh
-     createdb chainappdb
+     ```
+    - If only using a file DB run:
+    npx prisma db push ( creates the file )
+     # then
+    npx prisma generate
+
      ```
    - Run Prisma migrations:
      ```sh
