@@ -67,7 +67,7 @@ export async function POST(request: Request, { params }: { params: { gameId: str
                 }, { status: 409 });
             }
 
-            console.log('✅ Atomic lock acquired for game:', params.gameId);
+            console.log('Atomic lock acquired for game:', params.gameId);
 
             // Get moves from board state (robust for string or object, with logging)
             const moves: any[] = [];
@@ -126,7 +126,7 @@ export async function POST(request: Request, { params }: { params: { gameId: str
 
             // Validate data quality
             if (!safeGameId) {
-                console.error('❌ Game ID is empty after sanitization');
+                console.error('Game ID is empty after sanitization');
                 // Clear processing flag on validation error
                 await tx.game.update({
                     where: { id: params.gameId },
@@ -135,7 +135,7 @@ export async function POST(request: Request, { params }: { params: { gameId: str
                 return NextResponse.json({ error: 'Invalid game ID' }, { status: 400 });
             }
             if (!safeWhite || !safeBlack) {
-                console.error('❌ Player names are empty after sanitization');
+                console.error('Player names are empty after sanitization');
                 // Clear processing flag on validation error
                 await tx.game.update({
                     where: { id: params.gameId },
@@ -144,10 +144,10 @@ export async function POST(request: Request, { params }: { params: { gameId: str
                 return NextResponse.json({ error: 'Invalid player names' }, { status: 400 });
             }
             if (safeMoves.length === 0) {
-                console.warn('⚠️ No valid moves found (all moves must be 4-character strings)');
+                console.warn('No valid moves found (all moves must be 4-character strings)');
             }
 
-            console.log('✅ Data sanitization complete - creating ChessGame object...');
+            console.log('Data sanitization complete - creating ChessGame object...');
 
             // Create sanitized game object for blockchain storage
             const sanitizedGame = {
@@ -166,7 +166,7 @@ export async function POST(request: Request, { params }: { params: { gameId: str
             const result: any = await blockchainStorage.storeCompletedGame(sanitizedGame, safeMoves);
             
             if (!result || typeof result['success'] === 'undefined') {
-                console.error('❌ Blockchain storage failed: No result returned');
+                console.error('Blockchain storage failed: No result returned');
                 // Clear processing flag on failure
                 await tx.game.update({
                     where: { id: params.gameId },
@@ -177,14 +177,14 @@ export async function POST(request: Request, { params }: { params: { gameId: str
 
             // Handle the result
             if (!result['success']) {
-                // Check for duplicate/"already in chain"/"already in mempool" errors
+                // Check for "already in chain"/"already in mempool" errors
                 const errMsg = (result['error'] || '').toLowerCase();
                 if (
                     errMsg.includes('already in chain') ||
                     errMsg.includes('already in mempool') ||
                     errMsg.includes('transaction already exists')
                 ) {
-                    console.warn('⚠️ Transaction already in chain/mempool, treating as success');
+                    console.warn('Transaction already in chain/mempool, treating as success');
                     // Update database with the transaction info (even if it was already broadcast)
                     await tx.game.update({
                         where: { id: params.gameId },
@@ -201,7 +201,7 @@ export async function POST(request: Request, { params }: { params: { gameId: str
                         vdxfKey: result['vdxfKey'] || null
                     });
                 }
-                console.error('❌ Blockchain storage error:', result['error']);
+                console.error('Blockchain storage error:', result['error']);
                 // Clear processing flag on failure
                 await tx.game.update({
                     where: { id: params.gameId },
@@ -220,7 +220,7 @@ export async function POST(request: Request, { params }: { params: { gameId: str
                 }
             });
 
-            console.log('✅ Database updated with blockchain transaction info');
+            console.log('Database updated with blockchain transaction info');
 
             return NextResponse.json({
                 success: true,

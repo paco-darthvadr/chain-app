@@ -51,6 +51,9 @@ model Move {
   gameId    String
   move      String   // e.g., "e2e4"
   createdAt DateTime @default(now())
+  blockchainTxId String?
+  blockchainVdxfKey String?
+  blockchainStoredAt DateTime?
 }
 
 model ProcessedChallenge {

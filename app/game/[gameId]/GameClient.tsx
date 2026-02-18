@@ -15,6 +15,7 @@ import { Pawn } from '../../models/Pawn';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import GameOver from '@/components/chessboard/GameOver';
+import GameMoves from '@/components/chessboard/GameMoves';
 import { useRouter } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
@@ -67,6 +68,7 @@ const GameClient = ({ game }: GameClientProps) => {
     const [rematchOffered, setRematchOffered] = useState(false);
     const [incomingRematch, setIncomingRematch] = useState(false);
     const [socket, setSocket] = useState<Socket | null>(null);
+    const [blockchainStatus, setBlockchainStatus] = useState<Record<string, 'storing' | 'processing' | 'stored' | 'failed' | null>>({});
     const router = useRouter();
     
     // Ref to track if we've already updated the game status to prevent duplicate database updates
@@ -542,7 +544,7 @@ const GameClient = ({ game }: GameClientProps) => {
                             </div>
                         </div> */}
                         
-                        <Chessboard pieces={board.pieces} playMove={playMove} />
+                        <Chessboard pieces={board.pieces} playMove={playMove} bottomColor={currentPlayer} />
                     </div>
                 </div>
             </div>
@@ -555,6 +557,7 @@ const GameClient = ({ game }: GameClientProps) => {
                         isCheckmate={isCheckmate()} 
                         whitePlayer={gameState.whitePlayer}
                         blackPlayer={gameState.blackPlayer}
+                        blockchainStatus={blockchainStatus}
                     />
                 </div>
 
@@ -564,6 +567,13 @@ const GameClient = ({ game }: GameClientProps) => {
                 onPromote={handlePromotion}
                 onCancel={cancelPromotion}
                 team={pendingPromotion?.piece.team === TeamType.OUR ? TeamType.OUR : TeamType.OPPONENT}
+            />
+            {/* blockchain status indicators */}
+            <GameMoves
+                gameId={gameState.id}
+                moves={moves.map(m => ({ from: m.from, to: m.to }))}
+                playerVerusId={playerVerusId}
+                onStatusChange={setBlockchainStatus}
             />
         </div>
     );

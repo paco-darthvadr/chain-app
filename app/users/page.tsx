@@ -3,12 +3,13 @@
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Link from 'next/link';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { io, Socket } from 'socket.io-client';
 import { getUsers, getGamesForUser, deleteUser } from './actions';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import BlockchainInfoDialog from '@/components/chessboard/BlockchainInfoDialog';
 
 interface User {
     id: string;
@@ -20,7 +21,7 @@ interface User {
 let socket: Socket;
 
 const getBaseUrl = () => {
-    return process.env.NEXT_PUBLIC_APP_URL || 'http://192.168.0.162:3000';
+    return process.env.NEXT_PUBLIC_APP_URL;
 };
 
 function UsersPage() {
@@ -29,6 +30,8 @@ function UsersPage() {
     const [userGames, setUserGames] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [showBlockchainInfo, setShowBlockchainInfo] = useState(false);
+    const [hasShownBlockchainInfo, setHasShownBlockchainInfo] = useState(false);
     const [incomingChallenge, setIncomingChallenge] = useState<{ challengerId: string, challengerName: string } | null>(null);
     const [challengeSent, setChallengeSent] = useState<string | null>(null); // Store opponentId
     const router = useRouter();
@@ -131,6 +134,13 @@ function UsersPage() {
         };
     }, [fetchUsersAndGames]);
 
+    useEffect(() => {
+        if (currentUserId && !showBlockchainInfo && !hasShownBlockchainInfo) {
+            setShowBlockchainInfo(true);
+            setHasShownBlockchainInfo(true);
+        }
+    }, [currentUserId, showBlockchainInfo, hasShownBlockchainInfo]);
+
     const handleChallenge = async (opponentId: string) => {
         if (!currentUserId) return alert("Please select your user identity first.");
         if (!socket) return alert("Not connected to server. Please wait.");
@@ -222,6 +232,25 @@ function UsersPage() {
                                 Decline
                             </Button>
                         </div>
+                    </div>
+                </div>
+            )}
+            {showBlockchainInfo && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm"
+                    onClick={() => setShowBlockchainInfo(false)}
+                >
+                    <div onClick={(e) => e.stopPropagation()}>
+                        <BlockchainInfoDialog
+                            isVisible={showBlockchainInfo}
+                            onClose={() => setShowBlockchainInfo(false)}
+                            playerName={
+                                (() => {
+                                    const currentUser = users.find(u => u.id === currentUserId);
+                                    return currentUser?.displayName || currentUser?.verusId;
+                                })()
+                            }
+                        />
                     </div>
                 </div>
             )}

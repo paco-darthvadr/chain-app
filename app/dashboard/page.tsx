@@ -34,6 +34,18 @@ function LiveClock() {
 }
 
 export default function Home() {
+
+  // Set currentUser in local Storage if the userId query param is present (for testing purposes)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const userId = params.get('userId');
+      if (userId) {
+        localStorage.setItem('currentUser', userId);
+      }
+    }
+  }, []);
+
   const [userCount, setUserCount] = useState<number>(0);
   const [gameCount, setGameCount] = useState<number>(0);
   const [onChainCount, setOnChainCount] = useState<number>(0);

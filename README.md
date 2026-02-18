@@ -19,8 +19,6 @@ Chain App is a full-stack chess application with blockchain integration. It allo
 - **Node.js** (v18 or higher recommended)
 - **Yarn** 
 - **SQLite** (default, as configured in Prisma)
-- **PostgreSQL** or another database supported by Prisma (optional, if you want to switch from SQLite)
-
 ---
 
 ## Installation
@@ -59,13 +57,10 @@ Chain App is a full-stack chess application with blockchain integration. It allo
 
 5. **Start the development server:**
    ```sh
-   yarn dev
+   yarn run dev
    # or
    npm run dev
    ```
-
-6. **Access the app:**
-   - Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
@@ -94,7 +89,7 @@ Chain App is a full-stack chess application with blockchain integration. It allo
 
 ## Useful Commands
 
-- `yarn dev` / `npm run dev` — Start the Next.js development server
+- `yarn dev` — Start the Next.js development server
 - `yarn build` / `npm run build` — Build the app for production
 - `yarn start` / `npm start` — Start the production server
 - `npx prisma migrate dev` — Run migrations in development
@@ -104,16 +99,24 @@ Chain App is a full-stack chess application with blockchain integration. It allo
 ---
 
 ## TODO
-- [ ] Add new games
+- [ ] Add new games ( Add other game classed, Like how iv done for the chessgame class )
 - [ ] Add more blockchain transaction details to game history
 - [ ] Improve error handling and user feedback
 - [ ] Add unit and integration tests
 - [ ] Enhance mobile responsiveness
 - [ ] Refactor and document API endpoints
-- [ ] Add user profile customization
+- [ ] Add more user profile customization
 - [ ] Optimize performance for large user/game lists
+- [ ] The Users page needs work, plan is to list online/offline users, for the game challenge, also to have past games ether 
+- [ ] listed or a linked, and achievements 
+- [ ] move away from using Prisma or any DB and rely on Verus as the DB
+
+## Other TODO's 
+- [ ] tournaments
+- [ ] Ranking
+- [ ] Thoughts ? Tier and suscription based tournaments ( Mainnet baased model to pay costs for storage )  
 
 ---
 
 ## License
-MIT
+

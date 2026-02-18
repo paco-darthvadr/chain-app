@@ -27,13 +27,26 @@ interface MoveHistoryProps {
     isCheckmate?: boolean;
     whitePlayer?: Player;
     blackPlayer?: Player;
+    blockchainStatus?: Record<string, 'storing' | 'processing' | 'stored' | 'failed' | null>;
 }
 
-const MoveHistory = ({ moves, currentTurn, isCheck, isCheckmate, whitePlayer, blackPlayer }: MoveHistoryProps) => {
-    const formatPosition = (x: number, y: number) => {
-        const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
-        const ranks = ['8', '7', '6', '5', '4', '3', '2', '1'];
-        return `${files[x]}${ranks[y]}`;
+const MoveHistory = ({ moves, currentTurn, isCheck, isCheckmate, whitePlayer, blackPlayer, blockchainStatus }: MoveHistoryProps) => {
+    const getBlockchainStatusIcon = (move: Move) => {
+        const movekey = `${move.from}-${move.to}`;
+        const moveStatus = blockchainStatus?.[movekey];
+
+        switch (moveStatus) {
+            case 'storing':
+                return <span className="inline-block w-3 h-3 rounded-full bg-yellow-400" title="Storing on blockchain" />;
+            case 'processing':
+                return <span className="inline-block w-3 h-3 rounded-full bg-orange-400" title="Processing blockchain storage" />;
+            case 'stored':
+                return <span className="inline-block w-3 h-3 rounded-full bg-green-400" title="Stored on blockchain" />;
+            case 'failed':
+                return <span className="inline-block w-3 h-3 rounded-full bg-red-400" title="Failed to store on blockchain" />;
+            default:
+                return null;
+        }
     };
 
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -95,6 +108,7 @@ const MoveHistory = ({ moves, currentTurn, isCheck, isCheckmate, whitePlayer, bl
                                                 (promotes to {move.promotion})
                                             </span>
                                         )}
+                                        {getBlockchainStatusIcon(move)}
                                     </div>
                                 );
                             })}

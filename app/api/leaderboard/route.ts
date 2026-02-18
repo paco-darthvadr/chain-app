@@ -1,3 +1,4 @@
+export const runtime = 'nodejs'
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
@@ -15,9 +16,12 @@ export async function GET() {
 
     // For each user, count the number of games they've won
     const leaderboard = await Promise.all(
-      users.map(async (user: { id: string; verusId: string; displayName: string; avatarUrl: string }) => {
+      users.map(async (user: { id: string; verusId: string; displayName: string | null; avatarUrl: string | null }) => {
         const winCount = await prisma.game.count({
-          where: { winner: user.verusId },
+          where: { 
+            winner: user.id,
+            status: 'COMPLETED',
+          },
         });
         return { ...user, winCount };
       })

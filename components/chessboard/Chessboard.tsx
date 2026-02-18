@@ -10,12 +10,13 @@ import { useState, useEffect } from 'react';
 interface Props {
     playMove: (piece: Piece, position: Position) => boolean;
     pieces: Piece[];
+    bottomColor?: 'white' | 'black';
 }
 
 const verticalAxis = ["1", "2", "3", "4", "5", "6", "7", "8"];
 const horizontalAxis = ["a", "b", "c", "d", "e", "f", "g", "h"];
 
-export default function Chessboard({ pieces, playMove }: Props) {
+export default function Chessboard({ pieces, playMove, bottomColor = 'white' }: Props) {
     const [selectedPiece, setSelectedPiece] = useState<Piece | null>(null);
     const [validMoves, setValidMoves] = useState<Position[]>([]);
     const [isDragging, setIsDragging] = useState(false);
@@ -76,11 +77,16 @@ export default function Chessboard({ pieces, playMove }: Props) {
 
     let board = [];
 
-    for(let j = verticalAxis.length - 1; j >= 0; j--) {
-        for (let i = 0; i < horizontalAxis.length; i++) {
-            const number = j + i + 2;
-            const piece = pieces.find(p => p.position.x === i && p.position.y === j);
-            const position = new Position(i, j);
+    const vAxis = bottomColor === 'black' ? verticalAxis : [...verticalAxis].reverse();
+    const hAxis = bottomColor === 'black' ? [...horizontalAxis].reverse() : [...horizontalAxis];
+
+    for(let j = 0; j < vAxis.length; j++) {
+        for (let i = 0; i < hAxis.length; i++) {
+            const x = bottomColor === 'black' ? hAxis.length - 1 - i : i;
+            const y = bottomColor === 'black' ? j : vAxis.length - 1 - j;
+            const number = y + x + 2; // +2 to make it 1-indexed and match the axis labels
+            const piece = pieces.find(p => p.position.x === x && p.position.y === y);
+            const position = new Position(x, y);
             
             // Create a unique key that changes when pieces change
             const pieceKey = piece ? `${piece.type}-${piece.team}-${piece.position.x}-${piece.position.y}` : 'empty';

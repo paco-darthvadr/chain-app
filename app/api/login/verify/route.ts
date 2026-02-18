@@ -2,6 +2,16 @@ import { NextResponse } from 'next/server';
 import { verusLogin, getIdentity } from '@/app/utils/verusLogin.js';
 import { getProcessedChallenges, setProcessedChallenges } from '@/app/utils/database.js';
 import { prisma } from '@/lib/prisma';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) throw new Error('JWT_SECRET must be set in the environment');
+const JWT_EXPIRES_IN = '24h'; // 24 hour expiry
+
+// Helper to check if value is a plain object
+function isObject(val: unknown): val is Record<string, unknown> {
+  return val !== null && typeof val === 'object' && !Array.isArray(val);
+}
 
 export async function POST(request: Request) {
   try {
@@ -45,14 +55,31 @@ export async function POST(request: Request) {
           create: { verusId: result.signingId, displayName },
         });
       }
-      return NextResponse.json({
+      // --- JWT Generation ---
+      const token = jwt.sign(
+        {
+          userId: user?.id,
+          verusId: user?.verusId,
+        },
+        JWT_SECRET as string,
+        { expiresIn: JWT_EXPIRES_IN }
+      );
+      // Set JWT as HTTP-only, Secure cookie
+      const response = NextResponse.json({
         success: true,
         message: 'Login verified successfully',
         challengeId: challengeId,
         signingId: result.signingId,
-        displayName,
         user,
       });
+      response.cookies.set('token', token, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 60 * 60, // 1 hour
+      });
+      return response;
     } else {
       return NextResponse.json({
         error: result.error || 'Login verification failed'
@@ -75,6 +102,30 @@ export async function GET(request: Request) {
   }
   const existingChallenge = await getProcessedChallenges(challengeId);
   if (existingChallenge) {
+    let challengeData: any = existingChallenge;
+    if (typeof challengeData === 'string') {
+      try {
+        challengeData = JSON.parse(challengeData);
+      } catch (e) {
+        challengeData = {};
+      }
+    }
+    let signingId: string | undefined = undefined;
+    if (isObject(challengeData) && typeof challengeData.signing_id === 'string') {
+      signingId = challengeData.signing_id;
+    } else if (
+      isObject(challengeData) &&
+      isObject(challengeData.decision) &&
+      typeof challengeData.decision.signing_id === 'string'
+    ) {
+      signingId = challengeData.decision.signing_id;
+    }
+    if (signingId) {
+      const user = await prisma.user.findUnique({ where: { verusId: signingId } });
+      if (user) {
+        return NextResponse.json({ success: true, user: { id: user.id, verusId: user.verusId } });
+      }
+    }
     return NextResponse.json({ success: true });
   } else {
     return NextResponse.json({ success: false });

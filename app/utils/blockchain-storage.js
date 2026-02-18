@@ -2,6 +2,7 @@ const { VerusIdInterface } = require('verusid-ts-client');
 const { VerusdRpcInterface } = require('verusd-rpc-ts-client');
 const { Identity } = require('verus-typescript-primitives/dist/pbaas');
 const { ChessGame } = require('../../ChessGame.js');
+const { DATA_TYPE_STRING } = require('verus-typescript-primitives/dist/vdxf/keys');
 
 const SYSTEM_ID = process.env.TESTNET === 'true'
   ? 'iJhCezBExJHvtyH3fGhNnt2NhU4Ztkf2yq'
@@ -12,9 +13,39 @@ const VERUS_RPC_NETWORK = `http://${process.env.VERUS_RPC_USER}:${process.env.VE
 // Create RPC interface for UTXO queries
 const VerusdRpc = new VerusdRpcInterface(SYSTEM_ID, VERUS_RPC_NETWORK);
 
+const identityName = process.env.VERUS_SIGNING_ID;
+
 // Cache for UTXOs to prevent double-spend
 const utxoCache = new Map();
 const CACHE_TTL = 30000; // 30 seconds
+
+/**
+ * Logs the keys of the identity's contentmultimap for debugging.
+ * @param {string} [identityName] - Optional identity name, defaults to VERUS_SIGNING_ID env var.
+ */
+async function logIdentityContentMultimapKeys(identityName) {
+  try {
+    const name = identityName || process.env.VERUS_SIGNING_ID;
+    if (!name) {
+      throw new Error('VERUS_SIGNING_ID environment variable not set');
+    }
+    const verusId = new VerusIdInterface(SYSTEM_ID, VERUS_RPC_NETWORK);
+    // Use getIdentityContent instead of getIdentity
+    const identityResp = await verusId.interface.getIdentityContent(name);
+    if (!identityResp.result) {
+      throw new Error(`Identity not found: ${name}`);
+    }
+    const identity = identityResp.result.identity;
+    const contentmultimap = identity.contentmultimap || {};
+    const keys = Object.keys(contentmultimap);
+    console.log(`contentmultimap keys for identity '${name}':`, keys);
+    return keys;
+  } catch (err) {
+    console.error('Error logging contentmultimap keys:', err.message || err);
+    return [];
+  }
+}
+
 
 class BlockchainStorage {
   constructor() {
@@ -91,7 +122,7 @@ class BlockchainStorage {
         address: utxo.address,
         txid: utxo.txid,
         outputIndex: utxo.outputIndex,
-        script: utxo.script || "76a91407cd286f4d0faa8608000d0a028c311febc6199888ac",
+        script: utxo.script,
         satoshis: vrscAmount,
         height: utxo.height || 0,
         isspendable: utxo.isspendable || 1,
@@ -130,6 +161,8 @@ class BlockchainStorage {
   async storeCompletedGame(gameData, moves) {
     console.log('storeCompletedGame called for gameId:', gameData.id, 'at', new Date().toISOString());
     try {
+      const keys = await logIdentityContentMultimapKeys();
+      console.log('[VDXF] Current contentmultimap keys:', keys);
       console.log('=== CREATING CHESSGAME OBJECT ===');
       console.log('Input gameData:', {
         id: gameData.id,
@@ -141,18 +174,18 @@ class BlockchainStorage {
       });
       console.log('Input moves:', moves);
 
-      // Create ChessGame VDXF object with sanitized data (matching verus-test-v2.js format)
+      // Create ChessGame VDXF object 
       const chessGame = new ChessGame(
         gameData.id,
         gameData.whitePlayer.verusId || gameData.whitePlayer.displayName,
         gameData.blackPlayer.verusId || gameData.blackPlayer.displayName,
-        gameData.winner || "", // Use empty string if no winner (matching test file)
+        gameData.winner || "", // Use empty string if no winner
         gameData.status || "completed", // Use provided status or default to "completed"
-        moves, // Moves are already 4-character strings
+        moves, 
         gameData.timestamp || new Date().toISOString()
       );
 
-      console.log('✅ ChessGame object created successfully');
+      console.log('ChessGame object created successfully');
       console.log('ChessGame details:', {
         gameId: chessGame.gameId,
         white: chessGame.white,
@@ -163,18 +196,13 @@ class BlockchainStorage {
         timestamp: chessGame.timestamp,
         hash: chessGame.hash
       });
-
-      // Set the VDXF key on the chess game object (like in the working file)
-      const { DATA_TYPE_STRING } = require('verus-typescript-primitives/dist/vdxf/keys');
+ 
       chessGame.vdxfkey = DATA_TYPE_STRING.vdxfid;
-
-      // Get identity for storage (using environment variable)
-      const identityName = process.env.VERUS_SIGNING_ID;
+      
       if (!identityName) {
         throw new Error('VERUS_SIGNING_ID environment variable not set');
       }
 
-      // Fetch the identity
       const identityResp = await this.verusId.interface.getIdentity(identityName);
       if (!identityResp.result) {
         throw new Error(`Identity not found: ${identityName}`);
@@ -203,11 +231,10 @@ class BlockchainStorage {
       // Create Identity object
       const identityObj = Identity.fromJson(identityJson);
       
-      // Get current height
       const currentHeight = await this.verusId.getCurrentHeight();
       
-      // Get the primary address for change from the original identity
       const primaryAddress = identity.identity.primaryaddresses[0];
+
       // Use the primary address directly instead of CHANGE_ADDRESS since it has UTXOs
       const changeAddress = primaryAddress;
       
@@ -232,18 +259,18 @@ class BlockchainStorage {
         identity.blockheight,
         utxos,
         SYSTEM_ID,
-        0.00200 // fee - increased from 0.00100 to help with broadcast
+        0.00400 // fee - increase if needed
       );
       
-      console.log('✅ Update transaction created successfully!');
+      console.log('Update transaction created successfully!');
       console.log('Transaction hex length:', updateResult.hex.length);
       
       // Validate that the transaction includes basic identity update data
       console.log('Validating transaction includes basic identity update data...');
-      if (updateResult.hex.includes('6a') || updateResult.hex.includes('OP_RETURN')) {
-        console.log('✅ Transaction appears to include OP_RETURN data');
+      if (updateResult.hex.includes('OP_RETURN')) {
+        console.log('Transaction appears to include OP_RETURN data');
       } else {
-        console.log('⚠️ Transaction may not include identity update data - but will attempt broadcast');
+        console.log('Transaction may not include identity update data - check structure');
       }
       
       // Log ChessGame information
@@ -254,9 +281,6 @@ class BlockchainStorage {
       console.log(`Compression ratio: ${(JSON.stringify(chessGame.toJSON()).length / chessGame.toCompactBuffer().length).toFixed(2)}x`);
       console.log(`Space savings: ${((1 - chessGame.toCompactBuffer().length / JSON.stringify(chessGame.toJSON()).length) * 100).toFixed(1)}%`);
       
-      console.log(`Note: Using ChessGame VDXF object for compact storage`);
-      console.log(`Transaction will include serialized ChessGame data`);
-      
       // Sign the transaction
       console.log('Signing transaction...');
       
@@ -266,16 +290,10 @@ class BlockchainStorage {
         throw new Error('VERUS_SIGNING_WIF environment variable not set');
       }
       
-      // We need to provide signatures for all UTXOs being spent
-      // The identity signs the transaction, but we also need signatures for the funding UTXOs
-      console.log(`Using identity signing key: ${SIGNING_WIF.substring(0, 10)}...`);
-      console.log(`Number of UTXOs to sign: ${updateResult.utxos.length}`);
-      
-      // Create signature arrays for each UTXO (exactly as in working verus-test-v2.js)
+      // Create signature arrays for each UTXO 
       const privateKeyArrays = [];
       for (let i = 0; i < updateResult.utxos.length; i++) {
-        // For identity update transactions, we typically need the identity's private key for all UTXOs
-        // or the actual private keys that own the UTXOs being spent
+
         privateKeyArrays.push([SIGNING_WIF]);
         console.log(`UTXO ${i}: Using WIF key for signing`);
       }
@@ -288,20 +306,16 @@ class BlockchainStorage {
       
       console.log('Transaction signed successfully!');
       
-      // Broadcast the transaction with improved error handling
-      console.log('Attempting to broadcast transaction...');
-      
       let broadcastResult;
       try {
         // Try primary broadcast method
         broadcastResult = await this.verusId.interface.sendRawTransaction(signedTx);
       } catch (primaryError) {
-        console.log('Primary broadcast method failed, trying fallback...');
         console.log('Primary error:', primaryError.message);
         
         // Try fallback broadcast method using VerusdRpc
         try {
-          broadcastResult = await VerusdRpc.interface.rpc('sendrawtransaction', signedTx);
+          broadcastResult = await VerusdRpc.sendRawTransaction(signedTx);
           console.log('Fallback broadcast method used');
         } catch (fallbackError) {
           console.log('Fallback broadcast also failed:', fallbackError.message);
@@ -314,7 +328,7 @@ class BlockchainStorage {
             errorMsg.includes('transaction already exists') ||
             errorMsg.includes('double spend')
           ) {
-            console.warn('⚠️ Transaction already in chain/mempool, treating as success');
+            console.warn('Transaction already in chain/mempool, treating as success');
             
             // Clear UTXO cache since the transaction was likely successful
             this.clearUtxoCache(changeAddress);
@@ -335,7 +349,7 @@ class BlockchainStorage {
       }
       
       if (broadcastResult.result) {
-        console.log('🎉 SUCCESS! Transaction broadcast successfully!');
+        console.log('SUCCESS! Transaction broadcast successfully!');
         console.log('Transaction ID:', broadcastResult.result);
         console.log('VDXF Key:', chessGame.vdxfkey);
         console.log('Game Hash:', chessGame.hash);
@@ -352,21 +366,21 @@ class BlockchainStorage {
           compactSize: chessGame.toCompactBuffer().length
         };
       } else {
-        console.log('❌ Broadcast failed:', broadcastResult.error);
+        console.log('Broadcast failed:', broadcastResult.error);
         
         // Additional debugging for common broadcast failures
         if (broadcastResult.error && broadcastResult.error.message) {
           const errorMsg = broadcastResult.error.message.toLowerCase();
           if (errorMsg.includes('fee')) {
-            console.log('💡 Suggestion: Try increasing the transaction fee');
+            console.log('Suggestion: Try increasing the transaction fee');
           } else if (errorMsg.includes('utxo') || errorMsg.includes('spent')) {
-            console.log('💡 Suggestion: UTXO may already be spent, try with fresh UTXOs');
+            console.log('Suggestion: UTXO may already be spent, try with fresh UTXOs');
             // Clear UTXO cache to force fresh fetch
             this.clearUtxoCache(changeAddress);
           } else if (errorMsg.includes('invalid') || errorMsg.includes('malformed')) {
-            console.log('💡 Suggestion: Transaction structure may be invalid');
+            console.log('Suggestion: Transaction structure may be invalid');
           } else if (errorMsg.includes('500') || errorMsg.includes('internal')) {
-            console.log('💡 Suggestion: Node internal error, try again or check node status');
+            console.log('Suggestion: Node internal error, try again or check node status');
           }
         }
         

@@ -40,24 +40,27 @@ const Login = () => {
     setProcessing(true);
     const interval = setInterval(async () => {
       try {
-        const res = await fetch('/api/login/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ challengeId })
-        });
-        const result = await res.json();
-        if (result.success) {
-          clearInterval(interval);
-          setProcessing(false);
-          setLoginVerified(true);
-          setTimeout(() => {
+        const res = await fetch(`/api/login/verify?challengeId=${challengeId}`);
+        if (res.ok) {
+          const result = await res.json();
+          if (result.success && result.user) {
+            clearInterval(interval);
+            setProcessing(false);
+            setLoginVerified(true);
+            window.location.href = `/login/complete?userId=${result.user.id}&verusId=${result.user.verusId}`;
+            return;
+          } else if (result.success) {
+            clearInterval(interval);
+            setProcessing(false);
+            setLoginVerified(true);
             router.push('/dashboard');
-          }, 2000);
+            return;
+          }
         }
       } catch (e) {
         // Optionally handle error
       }
-    }, 5000); // 5 seconds interval for slow connections
+    }, 5000);
 
     return () => {
       clearInterval(interval);

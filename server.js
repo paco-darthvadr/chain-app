@@ -38,14 +38,14 @@ const rooms = {}; // { [roomId]: string[] }
 const userSockets = {}; // { [userId]: socketId }
 
 io.on('connection', (socket) => {
-  console.log(`🔌 A user connected: ${socket.id}`);
-  console.log(`📊 Total connections: ${Object.keys(io.sockets.sockets).length}`);
+  console.log(`A user connected: ${socket.id}`);
+  console.log(`Total connections: ${Object.keys(io.sockets.sockets).length}`);
 
   socket.on('register-user', (userId) => {
     userSockets[userId] = socket.id;
     socket.userId = userId; // Store on the socket for easy lookup on disconnect
-    console.log(`✅ User ${userId} registered with socket ${socket.id}`);
-    console.log('📋 Current registered users:', Object.keys(userSockets));
+    console.log(`User ${userId} registered with socket ${socket.id}`);
+    console.log('Current registered users:', Object.keys(userSockets));
   });
 
   socket.on('joinRoom', ({ roomId, userId }) => {
