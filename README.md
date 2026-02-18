@@ -41,11 +41,13 @@ Chain App is a full-stack chess application with blockchain integration. It allo
 
 4. **Set up the database:**
    - Create your database :
-     ```sh
+     ```
     - For testing 
     - If only using a file DB run:
+     ```sh
      npx prisma db push 
-     # then
+    - then
+     ```sh
      npx prisma generate 
      ```
    - Run Prisma migrations:
