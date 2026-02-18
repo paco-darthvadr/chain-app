@@ -1,3 +1,6 @@
+const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
 const { VerusIdInterface } = require('verusid-ts-client');
 const { VerusdRpcInterface } = require('verusd-rpc-ts-client');
 const { Identity } = require('verus-typescript-primitives/dist/pbaas');
@@ -15,9 +18,57 @@ const VerusdRpc = new VerusdRpcInterface(SYSTEM_ID, VERUS_RPC_NETWORK);
 
 const identityName = process.env.VERUS_SIGNING_ID;
 
-// Cache for UTXOs to prevent double-spend
-const utxoCache = new Map();
-const CACHE_TTL = 30000; // 30 seconds
+// Shared state for tracking transactions across instances
+let lastIdentityTx = null; // { txid, rawHex, blockHeight }
+let spentUtxos = new Set();
+let usedUtxos = new Set();
+
+async function clearRawMempool() {
+  const url = `http://${process.env.VERUS_RPC_USER}:${process.env.VERUS_RPC_PASSWORD}@${process.env.VERUS_RPC_HOST || '127.0.0.1'}:${process.env.VERUS_RPC_PORT || 18843}`;
+  try {
+    const response = await axios.post(url, {
+      method: 'clearrawmempool',
+      params: [],
+      id: 1,
+      jsonrpc: '2.0'
+    });
+    console.log('[STORAGE] clearrawmempool response:', response.data);
+    return response.data;
+  } catch (err) {
+    console.error('[STORAGE] Error clearing mempool:', err.response ? err.response.data : err.message);
+    throw err;
+  }
+}
+
+function logTxToFile(logObj) {
+  const logPath = path.join(process.cwd(), 'app', 'tx-log.json');
+  const fallbackPath = path.join(__dirname, '../tx-log.json');
+  function writeToValidJson(filePath) {
+    let logs = [];
+    try {
+      if (fs.existsSync(filePath)) {
+        const content = fs.readFileSync(filePath, 'utf8');
+        if (content.trim()) {
+          logs = JSON.parse(content);
+        }
+      }
+    } catch (e) {
+      logs = [];
+    }
+    logs.push(logObj);
+    fs.writeFileSync(filePath, JSON.stringify(logs, null, 2));
+  }
+  try {
+    writeToValidJson(logPath);
+  } catch (e) {
+    console.error('[STORAGE] Failed to write tx log (cwd):', e);
+    try {
+      writeToValidJson(fallbackPath);
+    } catch (e2) {
+      console.error('[STORAGE] Fallback log write also failed:', e2);
+    }
+  }
+}
 
 /**
  * Logs the keys of the identity's contentmultimap for debugging.
@@ -38,14 +89,13 @@ async function logIdentityContentMultimapKeys(identityName) {
     const identity = identityResp.result.identity;
     const contentmultimap = identity.contentmultimap || {};
     const keys = Object.keys(contentmultimap);
-    console.log(`contentmultimap keys for identity '${name}':`, keys);
+    console.log(`[STORAGE] contentmultimap keys for identity '${name}':`, keys);
     return keys;
   } catch (err) {
-    console.error('Error logging contentmultimap keys:', err.message || err);
+    console.error('[STORAGE] Error logging contentmultimap keys:', err.message || err);
     return [];
   }
 }
-
 
 class BlockchainStorage {
   constructor() {
@@ -53,103 +103,86 @@ class BlockchainStorage {
   }
 
   /**
-   * Get raw transaction hex from transaction ID with caching
+   * Get raw transaction hex from transaction ID
    * @param {Object} identity - Identity object with txid property
    * @returns {Promise<string>} Raw transaction hex
    */
   async getRawTransaction(identity) {
-    const cacheKey = `rawTx_${identity.txid}`;
-    const cached = utxoCache.get(cacheKey);
-    
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-      console.log('Using cached raw transaction hex');
-      return cached.data;
-    }
-
     try {
       const txResponse = await VerusdRpc.getRawTransaction(identity.txid);
-      if (!txResponse.result) {
-        throw new Error('No raw transaction hex returned');
-      }
-      
-      // Cache the result
-      utxoCache.set(cacheKey, {
-        data: txResponse.result,
-        timestamp: Date.now()
-      });
-      
+      if (!txResponse.result) throw new Error('No raw transaction hex returned');
       return txResponse.result;
     } catch (error) {
-      console.log('Could not get raw transaction hex, using transaction ID');
+      console.log('[STORAGE] Could not get raw transaction hex, using transaction ID');
       return identity.txid; // Fallback to transaction ID
     }
   }
 
   /**
-   * Get UTXOs with caching and double-spend prevention
+   * Get all UTXOs for an address, filtering out spent ones
    * @param {string} address - Address to get UTXOs for
-   * @returns {Promise<Array>} Formatted UTXOs
+   * @returns {Promise<Array>} Filtered UTXOs
    */
-  async getUtxosWithCache(address) {
-    const cacheKey = `utxos_${address}`;
-    const cached = utxoCache.get(cacheKey);
+  async getAllUtxos(address) {
+    // Fetch UTXOs and mempool for the address
+    const utxoResponse = await VerusdRpc.getAddressUtxos({ addresses: [address] });
+    const mempoolResponse = await VerusdRpc.getAddressMempool({ addresses: [address] });
+    let allUtxos = utxoResponse.result || [];
+    let mempoolSpentSet = new Set();
     
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-      console.log('Using cached UTXOs for address:', address);
-      return cached.data;
+    // Build set of UTXOs referenced in mempool as spending
+    if (Array.isArray(mempoolResponse.result)) {
+      mempoolResponse.result.forEach(entry => {
+        if (entry.spending && entry.txid && typeof entry.index === 'number') {
+          mempoolSpentSet.add(`${entry.txid}:${entry.index}`);
+        }
+      });
     }
-
-    console.log('Fetching fresh UTXOs for address:', address);
-    const utxoResponse = await VerusdRpc.getAddressUtxos({addresses: [address]});
-    const rawUtxos = utxoResponse.result;
     
-    if (!rawUtxos || rawUtxos.length === 0) {
-      throw new Error(`No UTXOs found for address: ${address}`);
-    }
+    // Filter out UTXOs already used in pending txs, referenced in mempool as spending, or already marked as used
+    const filteredUtxos = allUtxos.filter(u =>
+      u.satoshis > 0 &&
+      u.isspendable === 1 &&
+      !spentUtxos.has(`${u.txid}:${u.outputIndex}`) &&
+      !mempoolSpentSet.has(`${u.txid}:${u.outputIndex}`) &&
+      !usedUtxos.has(`${u.txid}:${u.outputIndex}`)
+    );
     
-    console.log(`Found ${rawUtxos.length} UTXOs for address: ${address}`);
-    
-    // Format UTXOs for transaction
-    const utxos = rawUtxos.map(utxo => {
-      let vrscAmount = 0;
-      if (utxo.currencyvalues && utxo.currencyvalues[SYSTEM_ID]) {
-        vrscAmount = utxo.currencyvalues[SYSTEM_ID] * 100000000;
-      } else if (!utxo.currencyvalues && utxo.satoshis > 0) {
-        vrscAmount = utxo.satoshis;
-      }
-      
-      return {
-        address: utxo.address,
-        txid: utxo.txid,
-        outputIndex: utxo.outputIndex,
-        script: utxo.script,
-        satoshis: vrscAmount,
-        height: utxo.height || 0,
-        isspendable: utxo.isspendable || 1,
-        blocktime: utxo.blocktime || Math.floor(Date.now() / 1000)
-      };
-    }).filter(utxo => utxo.satoshis > 0);
-    
-    console.log(`Formatted ${utxos.length} VRSC UTXOs`);
-    console.log(`Total VRSC available: ${utxos.reduce((sum, utxo) => sum + utxo.satoshis, 0) / 100000000}`);
-    
-    // Cache the result
-    utxoCache.set(cacheKey, {
-      data: utxos,
-      timestamp: Date.now()
+    console.log(`[STORAGE][getAllUtxos] mempoolSpentSet:`, Array.from(mempoolSpentSet));
+    console.log(`[STORAGE][getAllUtxos] spendableUtxos: ${filteredUtxos.length}`);
+    filteredUtxos.forEach((u, idx) => {
+      console.log(`  [${idx}] txid: ${u.txid}, outputIndex: ${u.outputIndex}, satoshis: ${u.satoshis}`);
     });
     
-    return utxos;
+    return filteredUtxos;
   }
 
   /**
-   * Clear UTXO cache for an address (call after successful broadcast)
-   * @param {string} address - Address to clear cache for
+   * Check if a txid is confirmed or in mempool
    */
-  clearUtxoCache(address) {
-    const cacheKey = `utxos_${address}`;
-    utxoCache.delete(cacheKey);
-    console.log('Cleared UTXO cache for address:', address);
+  async isTxConfirmedOrInMempool(txid) {
+    try {
+      const rawTx = await VerusdRpc.getRawTransaction(txid, 1);
+      if (rawTx && rawTx.result && rawTx.result.confirmations && rawTx.result.confirmations > 0) {
+        return 'confirmed';
+      }
+    } catch (e) {
+      // Not confirmed, check mempool
+      try {
+        const mempoolEntry = await VerusdRpc.instance.post('/', {
+          method: 'getmempoolentry',
+          params: [txid],
+          id: 1,
+          jsonrpc: '2.0'
+        });
+        if (mempoolEntry && mempoolEntry.data && mempoolEntry.data.result) {
+          return 'mempool';
+        }
+      } catch (e2) {
+        // Not in mempool
+      }
+    }
+    return 'missing';
   }
 
   /**
@@ -159,237 +192,285 @@ class BlockchainStorage {
    * @returns {Promise<Object>} Storage result
    */
   async storeCompletedGame(gameData, moves) {
-    console.log('storeCompletedGame called for gameId:', gameData.id, 'at', new Date().toISOString());
-    try {
-      const keys = await logIdentityContentMultimapKeys();
-      console.log('[VDXF] Current contentmultimap keys:', keys);
-      console.log('=== CREATING CHESSGAME OBJECT ===');
-      console.log('Input gameData:', {
-        id: gameData.id,
-        white: gameData.whitePlayer.verusId || gameData.whitePlayer.displayName,
-        black: gameData.blackPlayer.verusId || gameData.blackPlayer.displayName,
-        winner: gameData.winner,
-        status: gameData.status,
-        timestamp: gameData.timestamp
-      });
-      console.log('Input moves:', moves);
-
-      // Create ChessGame VDXF object 
-      const chessGame = new ChessGame(
-        gameData.id,
-        gameData.whitePlayer.verusId || gameData.whitePlayer.displayName,
-        gameData.blackPlayer.verusId || gameData.blackPlayer.displayName,
-        gameData.winner || "", // Use empty string if no winner
-        gameData.status || "completed", // Use provided status or default to "completed"
-        moves, 
-        gameData.timestamp || new Date().toISOString()
-      );
-
-      console.log('ChessGame object created successfully');
-      console.log('ChessGame details:', {
-        gameId: chessGame.gameId,
-        white: chessGame.white,
-        black: chessGame.black,
-        winner: chessGame.winner,
-        status: chessGame.status,
-        moves: chessGame.moves,
-        timestamp: chessGame.timestamp,
-        hash: chessGame.hash
-      });
- 
-      chessGame.vdxfkey = DATA_TYPE_STRING.vdxfid;
-      
-      if (!identityName) {
-        throw new Error('VERUS_SIGNING_ID environment variable not set');
-      }
-
-      const identityResp = await this.verusId.interface.getIdentity(identityName);
-      if (!identityResp.result) {
-        throw new Error(`Identity not found: ${identityName}`);
-      }
-      
-      const identity = identityResp.result;
-      
-      // Create VdxfUniValue with the serialized data (using the working approach)
-      const serializedData = chessGame.toCompactBuffer();
-      const base64Data = serializedData.toString('base64');
-      
-      const vdxfUniValue = {
-        [DATA_TYPE_STRING.vdxfid]: base64Data
-      };
-      
-      const contentmultimap = {
-        [chessGame.vdxfkey]: [vdxfUniValue]
-      };
-      
-      // Create updated identity with contentmultimap
-      const identityJson = {
-        ...identity.identity,
-        contentmultimap: contentmultimap
-      };
-      
-      // Create Identity object
-      const identityObj = Identity.fromJson(identityJson);
-      
-      const currentHeight = await this.verusId.getCurrentHeight();
-      
-      const primaryAddress = identity.identity.primaryaddresses[0];
-
-      // Use the primary address directly instead of CHANGE_ADDRESS since it has UTXOs
-      const changeAddress = primaryAddress;
-      
-      console.log(`Using identity primary address as change address: ${changeAddress}`);
-      
-      // Get raw transaction hex with caching
-      const rawTxHex = await this.getRawTransaction(identity);
-      
-      console.log(`Raw transaction hex: ${rawTxHex.substring(0, 50)}...`);
-      console.log(`Raw transaction hex length: ${rawTxHex.length}`);
-      
-      // Get UTXOs with caching and double-spend prevention
-      const utxos = await this.getUtxosWithCache(changeAddress);
-      
-      // Create the update transaction with proper fee (like in working file)
-      console.log('Creating update transaction...');
-      
-      const updateResult = await this.verusId.createUpdateIdentityTransaction(
-        identityObj,
-        changeAddress,
-        rawTxHex,
-        identity.blockheight,
-        utxos,
-        SYSTEM_ID,
-        0.00400 // fee - increase if needed
-      );
-      
-      console.log('Update transaction created successfully!');
-      console.log('Transaction hex length:', updateResult.hex.length);
-      
-      // Validate that the transaction includes basic identity update data
-      console.log('Validating transaction includes basic identity update data...');
-      if (updateResult.hex.includes('OP_RETURN')) {
-        console.log('Transaction appears to include OP_RETURN data');
-      } else {
-        console.log('Transaction may not include identity update data - check structure');
-      }
-      
-      // Log ChessGame information
-      console.log(`ChessGame VDXF data: ${chessGame.toString()}`);
-      console.log(`VDXF Key: ${chessGame.vdxfkey}`);
-      console.log(`Serialized size: ${chessGame.toCompactBuffer().length} bytes`);
-      console.log(`JSON size: ${JSON.stringify(chessGame.toJSON()).length} bytes`);
-      console.log(`Compression ratio: ${(JSON.stringify(chessGame.toJSON()).length / chessGame.toCompactBuffer().length).toFixed(2)}x`);
-      console.log(`Space savings: ${((1 - chessGame.toCompactBuffer().length / JSON.stringify(chessGame.toJSON()).length) * 100).toFixed(1)}%`);
-      
-      // Sign the transaction
-      console.log('Signing transaction...');
-      
-      // Get the signing WIF key
-      const SIGNING_WIF = process.env.VERUS_SIGNING_WIF;
-      if (!SIGNING_WIF) {
-        throw new Error('VERUS_SIGNING_WIF environment variable not set');
-      }
-      
-      // Create signature arrays for each UTXO 
-      const privateKeyArrays = [];
-      for (let i = 0; i < updateResult.utxos.length; i++) {
-
-        privateKeyArrays.push([SIGNING_WIF]);
-        console.log(`UTXO ${i}: Using WIF key for signing`);
-      }
-
-      const signedTx = this.verusId.signUpdateIdentityTransaction(
-        updateResult.hex,
-        updateResult.utxos,
-        privateKeyArrays
-      );
-      
-      console.log('Transaction signed successfully!');
-      
-      let broadcastResult;
+    console.log('[STORAGE] storeCompletedGame called for gameId:', gameData.id, 'at', new Date().toISOString());
+    
+    const logObj = {
+      gameId: gameData.id,
+      time: new Date().toISOString()
+    };
+    
+    let attempt = 0;
+    let lastError = null;
+    
+    while (attempt < 2) { // Try up to 2 times: initial + after mempool clear
       try {
-        // Try primary broadcast method
-        broadcastResult = await this.verusId.interface.sendRawTransaction(signedTx);
-      } catch (primaryError) {
-        console.log('Primary error:', primaryError.message);
+        const keys = await logIdentityContentMultimapKeys();
+        console.log('[STORAGE][VDXF] Current contentmultimap keys:', keys);
+        console.log('[STORAGE] === CREATING CHESSGAME OBJECT ===');
         
-        // Try fallback broadcast method using VerusdRpc
-        try {
-          broadcastResult = await VerusdRpc.sendRawTransaction(signedTx);
-          console.log('Fallback broadcast method used');
-        } catch (fallbackError) {
-          console.log('Fallback broadcast also failed:', fallbackError.message);
-          
-          // Check if it's a double-spend or "already in chain" error
-          const errorMsg = fallbackError.message.toLowerCase();
-          if (
-            errorMsg.includes('already in chain') ||
-            errorMsg.includes('already in mempool') ||
-            errorMsg.includes('transaction already exists') ||
-            errorMsg.includes('double spend')
-          ) {
-            console.warn('Transaction already in chain/mempool, treating as success');
-            
-            // Clear UTXO cache since the transaction was likely successful
-            this.clearUtxoCache(changeAddress);
-            
-            return {
-              success: true,
-              transactionId: 'ALREADY_IN_CHAIN',
-              vdxfKey: chessGame.vdxfkey,
-              gameHash: chessGame.hash,
-              identityAddress: identityObj.getIdentityAddress(),
-              compactSize: chessGame.toCompactBuffer().length,
-              message: 'Transaction already in chain or mempool'
-            };
-          }
-          
-          throw fallbackError;
+        // Create ChessGame VDXF object 
+        const chessGame = new ChessGame(
+          gameData.id,
+          gameData.whitePlayer.verusId || gameData.whitePlayer.displayName,
+          gameData.blackPlayer.verusId || gameData.blackPlayer.displayName,
+          gameData.winner || "",
+          gameData.status || "completed",
+          moves, 
+          gameData.timestamp || new Date().toISOString()
+        );
+
+        console.log('[STORAGE] ChessGame object created successfully');
+        console.log('[STORAGE] ChessGame hash:', chessGame.hash);
+ 
+        chessGame.vdxfkey = DATA_TYPE_STRING.vdxfid;
+        
+        if (!identityName) {
+          throw new Error('VERUS_SIGNING_ID environment variable not set');
         }
-      }
-      
-      if (broadcastResult.result) {
-        console.log('SUCCESS! Transaction broadcast successfully!');
-        console.log('Transaction ID:', broadcastResult.result);
-        console.log('VDXF Key:', chessGame.vdxfkey);
-        console.log('Game Hash:', chessGame.hash);
+
+        // Fetch identity from chain for the first tx, or use last unconfirmed for chaining
+        let identityResp, identity, changeAddress, parentRawHex, parentBlockHeight;
         
-        // Clear UTXO cache after successful broadcast to prevent double-spend
-        this.clearUtxoCache(changeAddress);
+        identityResp = await this.verusId.interface.getIdentity(identityName);
+        if (!identityResp.result) throw new Error(`Identity not found: ${identityName}`);
         
-        return {
-          success: true,
-          transactionId: broadcastResult.result,
-          vdxfKey: chessGame.vdxfkey,
-          gameHash: chessGame.hash,
-          identityAddress: identityObj.getIdentityAddress(),
-          compactSize: chessGame.toCompactBuffer().length
+        identity = identityResp.result;
+        changeAddress = identity.identity.primaryaddresses[0];
+        
+        let useChaining = false;
+        if (lastIdentityTx) {
+          // Check parent tx status
+          const parentTxid = lastIdentityTx.txid;
+          const parentStatus = await this.isTxConfirmedOrInMempool(parentTxid);
+          console.log(`[STORAGE] Parent tx ${parentTxid} status: ${parentStatus}`);
+          
+          if (parentStatus === 'confirmed' || parentStatus === 'mempool') {
+            parentRawHex = lastIdentityTx.rawHex;
+            parentBlockHeight = lastIdentityTx.blockHeight;
+            useChaining = true;
+            console.log('[STORAGE] Using transaction chaining');
+          } else {
+            parentRawHex = await this.getRawTransaction(identity);
+            parentBlockHeight = identity.blockheight;
+            lastIdentityTx = { txid: identity.txid, rawHex: parentRawHex, blockHeight: parentBlockHeight };
+            useChaining = false;
+            console.log('[STORAGE] Parent tx missing, resetting to confirmed identity');
+          }
+        } else {
+          parentRawHex = await this.getRawTransaction(identity);
+          parentBlockHeight = identity.blockheight;
+          lastIdentityTx = { txid: identity.txid, rawHex: parentRawHex, blockHeight: parentBlockHeight };
+          console.log('[STORAGE] First transaction, using confirmed identity');
+        }
+        
+        // Create VdxfUniValue with the serialized data
+        const serializedData = chessGame.toCompactBuffer();
+        const base64Data = serializedData.toString('base64');
+        
+        const vdxfUniValue = {
+          [DATA_TYPE_STRING.vdxfid]: base64Data
         };
-      } else {
-        console.log('Broadcast failed:', broadcastResult.error);
         
-        // Additional debugging for common broadcast failures
-        if (broadcastResult.error && broadcastResult.error.message) {
-          const errorMsg = broadcastResult.error.message.toLowerCase();
-          if (errorMsg.includes('fee')) {
-            console.log('Suggestion: Try increasing the transaction fee');
-          } else if (errorMsg.includes('utxo') || errorMsg.includes('spent')) {
-            console.log('Suggestion: UTXO may already be spent, try with fresh UTXOs');
-            // Clear UTXO cache to force fresh fetch
-            this.clearUtxoCache(changeAddress);
-          } else if (errorMsg.includes('invalid') || errorMsg.includes('malformed')) {
-            console.log('Suggestion: Transaction structure may be invalid');
-          } else if (errorMsg.includes('500') || errorMsg.includes('internal')) {
-            console.log('Suggestion: Node internal error, try again or check node status');
+        const contentmultimap = {
+          [chessGame.vdxfkey]: [vdxfUniValue]
+        };
+        
+        // Create updated identity with contentmultimap
+        const identityJson = {
+          ...identity.identity,
+          contentmultimap: contentmultimap
+        };
+        
+        // Create Identity object
+        const identityObj = Identity.fromJson(identityJson);
+        if (!identityObj) {
+          console.error('[STORAGE][ERROR] Failed to create Identity object from JSON:', identityJson);
+          throw new Error('Failed to create Identity object from JSON');
+        }
+        
+        // Refresh UTXO and mempool state before attempt
+        let utxos = await this.getAllUtxos(changeAddress);
+        if (utxos.length === 0) throw new Error('No spendable UTXOs available');
+        
+        // Always mark selected UTXO as used immediately after selection
+        const selectedUtxo = utxos[0];
+        if (selectedUtxo) {
+          usedUtxos.add(`${selectedUtxo.txid}:${selectedUtxo.outputIndex}`);
+          console.log(`[STORAGE] Selected and marked UTXO: ${selectedUtxo.txid}:${selectedUtxo.outputIndex}`);
+        }
+
+        // Use only the selected UTXO for this attempt
+        const utxoForTx = [selectedUtxo];
+        
+        console.log('[STORAGE] Creating update transaction...');
+        
+        const updateResult = await this.verusId.createUpdateIdentityTransaction(
+          identityObj,
+          changeAddress,
+          parentRawHex,
+          parentBlockHeight,
+          utxoForTx,
+          SYSTEM_ID,
+          0.00450 // Higher fee to match basic.js
+        );
+        
+        console.log('[STORAGE] Update transaction created successfully!');
+        console.log('[STORAGE] Transaction hex length:', updateResult.hex.length);
+        
+        // Log ChessGame information
+        console.log(`[STORAGE] ChessGame VDXF data: ${chessGame.toString()}`);
+        console.log(`[STORAGE] VDXF Key: ${chessGame.vdxfkey}`);
+        console.log(`[STORAGE] Serialized size: ${chessGame.toCompactBuffer().length} bytes`);
+        console.log(`[STORAGE] JSON size: ${JSON.stringify(chessGame.toJSON()).length} bytes`);
+        
+        // Sign the transaction
+        console.log('[STORAGE] Signing transaction...');
+        
+        // Get the signing WIF key
+        const SIGNING_WIF = process.env.VERUS_SIGNING_WIF;
+        if (!SIGNING_WIF) {
+          throw new Error('VERUS_SIGNING_WIF environment variable not set');
+        }
+        
+        // Create signature arrays for each UTXO 
+        const privateKeyArrays = [];
+        for (let i = 0; i < updateResult.utxos.length; i++) {
+          privateKeyArrays.push([SIGNING_WIF]);
+        }
+
+        const signedTx = this.verusId.signUpdateIdentityTransaction(
+          updateResult.hex,
+          updateResult.utxos,
+          privateKeyArrays
+        );
+        
+        console.log('[STORAGE] Transaction signed successfully!');
+        
+        let broadcastResult;
+        try {
+          broadcastResult = await this.verusId.interface.sendRawTransaction(signedTx);
+        } catch (primaryError) {
+          console.log('[STORAGE] Primary broadcast error:', primaryError.message);
+          
+          try {
+            const fallbackResp = await VerusdRpc.instance.post('/', {
+              method: 'sendrawtransaction',
+              params: [signedTx],
+              id: 1,
+              jsonrpc: '2.0'
+            });
+            broadcastResult = fallbackResp.data;
+            console.log('[STORAGE] Fallback broadcast method used');
+          } catch (fallbackError) {
+            console.log('[STORAGE] Fallback broadcast also failed:', fallbackError.message);
+            
+            // Check if it's a double-spend or "already in chain" error
+            const errorMsg = fallbackError.message.toLowerCase();
+            if (
+              errorMsg.includes('already in chain') ||
+              errorMsg.includes('already in mempool') ||
+              errorMsg.includes('transaction already exists') ||
+              errorMsg.includes('double spend') ||
+              errorMsg.includes('txn-mempool-conflict')
+            ) {
+              console.warn('[STORAGE] Transaction already in chain/mempool, treating as success');
+              
+              logObj.status = 'already_in_chain';
+              logObj.message = 'Transaction already exists';
+              logTxToFile(logObj);
+              
+              return {
+                success: true,
+                transactionId: 'ALREADY_IN_CHAIN',
+                vdxfKey: chessGame.vdxfkey,
+                gameHash: chessGame.hash,
+                identityAddress: identityObj.getIdentityAddress(),
+                compactSize: chessGame.toCompactBuffer().length,
+                message: 'Transaction already in chain or mempool'
+              };
+            }
+            
+            logObj.error = {
+              type: 'fallback',
+              message: fallbackError.message,
+              stack: fallbackError.stack,
+              response: fallbackError.response && fallbackError.response.data
+            };
+            logTxToFile(logObj);
+            lastError = fallbackError;
+            throw fallbackError;
           }
         }
         
-        return { success: false, error: broadcastResult.error?.message || 'Broadcast failed' };
+        if (broadcastResult.result) {
+          console.log('[STORAGE] SUCCESS! Transaction broadcast successfully!');
+          console.log('[STORAGE] Transaction ID:', broadcastResult.result);
+          console.log('[STORAGE] VDXF Key:', chessGame.vdxfkey);
+          console.log('[STORAGE] Game Hash:', chessGame.hash);
+          
+          // Mark UTXOs as spent for pipelined updates
+          for (const u of updateResult.utxos) {
+            spentUtxos.add(`${u.txid}:${u.outputIndex}`);
+          }
+          
+          // Update lastIdentityTx for next pipelined update
+          lastIdentityTx = { txid: broadcastResult.result, rawHex: updateResult.hex, blockHeight: parentBlockHeight };
+          
+          logObj.result = broadcastResult.result;
+          logObj.status = 'broadcasted';
+          logObj.vdxfKey = chessGame.vdxfkey;
+          logTxToFile(logObj);
+          
+          return {
+            success: true,
+            transactionId: broadcastResult.result,
+            vdxfKey: chessGame.vdxfkey,
+            gameHash: chessGame.hash,
+            identityAddress: identityObj.getIdentityAddress(),
+            compactSize: chessGame.toCompactBuffer().length
+          };
+        } else {
+          const errorMsg = broadcastResult && broadcastResult.error && broadcastResult.error.message
+            ? broadcastResult.error.message
+            : 'Broadcast failed';
+          
+          logObj.status = 'broadcast_failed';
+          logObj.broadcastResult = broadcastResult;
+          logObj.error = errorMsg;
+          logTxToFile(logObj);
+          lastError = new Error(errorMsg);
+          throw lastError;
+        }
+      } catch (err) {
+        console.error('[STORAGE] Exception:', err.message);
+        logObj.status = 'exception';
+        logObj.error = err && err.message;
+        logObj.stack = err && err.stack;
+        logTxToFile(logObj);
+        lastError = err;
+        
+        if (attempt === 0) {
+          // First failure, clear mempool and retry
+          console.log('[STORAGE] First attempt failed, clearing mempool and retrying...');
+          await clearRawMempool();
+          attempt++;
+          continue;
+        } else {
+          // Second failure, return error
+          console.error('[STORAGE] Second attempt failed, giving up');
+          return {
+            success: false,
+            error: err && err.message
+          };
+        }
       }
-    } catch (error) {
-      console.error('Blockchain storage error:', error);
-      return { success: false, error: error.message || 'Unknown error' };
     }
+    
+    // If we get here, all attempts failed
+    return {
+      success: false,
+      error: lastError && lastError.message || 'All attempts failed'
+    };
   }
 
   /**
@@ -435,4 +516,4 @@ class BlockchainStorage {
   }
 }
 
-module.exports = { BlockchainStorage }; 
+module.exports = { BlockchainStorage };

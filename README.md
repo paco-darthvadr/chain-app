@@ -25,7 +25,7 @@ Chain App is a full-stack chess application with blockchain integration. It allo
 
 1. **Clone the repository:**
    ```sh
-   git clone <repo-url>
+   git clone https://github.com/paco-darthvadr/chain-app.git
    cd chain-app
    ```
 
@@ -40,14 +40,13 @@ Chain App is a full-stack chess application with blockchain integration. It allo
    - Change the CORS URL's in the server.js to your own
 
 4. **Set up the database:**
-   - Create your database (I use only a file for the DB for testing):
+   - Create your database :
      ```sh
-     ```
+    - For testing 
     - If only using a file DB run:
-    npx prisma db push ( creates the file )
+     npx prisma db push 
      # then
-    npx prisma generate
-
+     npx prisma generate 
      ```
    - Run Prisma migrations:
      ```sh
@@ -75,7 +74,8 @@ Chain App is a full-stack chess application with blockchain integration. It allo
 
 - The app uses Prisma ORM. The schema is defined in `prisma/schema.prisma`.
 - Migrations are in `prisma/migrations/`.
-- To apply migrations:
+
+- It is enough to only run npx prisma db push and npx prisma generate to create the db file and get started:
   ```sh
   npx prisma migrate deploy
   # or
