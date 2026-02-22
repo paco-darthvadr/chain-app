@@ -14,6 +14,7 @@ export default function SettingsPage() {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
   useEffect(() => {
     const savedUserId = localStorage.getItem('currentUser');
@@ -22,6 +23,7 @@ export default function SettingsPage() {
       getUserSettings(savedUserId).then(userData => {
         if (userData) {
           setUser(userData);
+          setAvatarPreview(userData.avatarUrl || null);
         }
       });
     }
@@ -40,7 +42,10 @@ export default function SettingsPage() {
       if (result.success) {
         setSuccess('Settings updated successfully!');
         // Refetch user data to show updated avatar
-        getUserSettings(currentUserId).then(setUser);
+              getUserSettings(currentUserId).then(u => {
+                setUser(u);
+                setAvatarPreview(u?.avatarUrl || null);
+              });
       } else {
         setError(result.error || 'An unknown error occurred.');
       }
@@ -62,17 +67,34 @@ export default function SettingsPage() {
     <DashboardLayout>
       <div className="container mx-auto p-6">
         <Card className="max-w-2xl mx-auto">
-          <form action={handleSubmit}>
+          <form action={handleSubmit} encType="multipart/form-data">
             <CardHeader>
               <CardTitle>User Profile</CardTitle>
               <CardDescription>This information will be displayed to other players.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="flex items-center gap-6">
-                <Avatar className="h-24 w-24">
-                  <AvatarImage src={user.avatarUrl} alt={user.displayName || user.verusId} />
-                  <AvatarFallback>{(user.displayName || user.verusId).substring(0, 2).toUpperCase()}</AvatarFallback>
-                </Avatar>
+                <div className="flex flex-col items-center gap-3">
+                  <Avatar className="h-24 w-24">
+                    <AvatarImage src={avatarPreview || user.avatarUrl} alt={user.displayName || user.verusId} />
+                    <AvatarFallback>{(user.displayName || user.verusId).substring(0, 2).toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                  <label className="text-xs text-muted-foreground">Upload avatar (PNG/JPEG/WEBP/GIF)</label>
+                  <input
+                    type="file"
+                    name="avatar"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const f = e.target.files && e.target.files[0];
+                      if (f) {
+                        const url = URL.createObjectURL(f);
+                        setAvatarPreview(url);
+                      } else {
+                        setAvatarPreview(user.avatarUrl || null);
+                      }
+                    }}
+                  />
+                </div>
                 <div className='flex-grow'>
                     <label htmlFor="displayName" className="block text-sm font-medium mb-1">Display Name</label>
                     <Input

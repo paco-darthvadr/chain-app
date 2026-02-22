@@ -13,9 +13,9 @@ export const SidebarItems = [
         icon: LayoutDashboard,
     },
     {
-        href: "/game",
-        label: "Game",
-        icon: Crown,
+        href: "/users",
+        label: "Challenge Players",
+        icon: Users,
     },
     {
         href: "/chat",
@@ -23,9 +23,9 @@ export const SidebarItems = [
         icon: MessageSquare,
     },
     {
-        href: "/users",
-        label: "Users",
-        icon: Users,
+        href: "/game",
+        label: "Offline Game",
+        icon: Crown,
     },
     {
         href: "/settings",

@@ -2,10 +2,37 @@ const axios = require('axios');
 const { VerusIdInterface } = require('verusid-ts-client');
 const { VerusdRpcInterface } = require('verusd-rpc-ts-client');
 const { Identity } = require('verus-typescript-primitives/dist/pbaas');
-const { DATA_TYPE_STRING } = require('verus-typescript-primitives/dist/vdxf/keys');
+const { DATA_TYPE_STRING, DATA_TYPE_DEFINEDGAMEIDKEY, DATA_TYPE_DEFINEDMOVEKEY, DATA_TYPE_DEFINEDGAMEKEY } = require('verus-typescript-primitives/dist/vdxf/keys');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+
+/**
+ * Logs the keys of the identity's contentmultimap for debugging.
+ * @param {string} [identityName] - Optional identity name, defaults to VERUS_SIGNING_ID env var.
+ */
+async function logIdentityContentMultimapKeys(identityName) {
+  try {
+    const name = identityName || process.env.VERUS_SIGNING_ID;
+    if (!name) {
+      throw new Error('VERUS_SIGNING_ID environment variable not set');
+    }
+    const verusId = new VerusIdInterface(SYSTEM_ID, VERUS_RPC_NETWORK);
+    // Use getIdentityContent instead of getIdentity
+    const identityResp = await verusId.interface.getIdentityContent(name);
+    if (!identityResp.result) {
+      throw new Error(`Identity not found: ${name}`);
+    }
+    const identity = identityResp.result.identity;
+    const contentmultimap = identity.contentmultimap || {};
+    const keys = Object.keys(contentmultimap);
+    console.log(`[STORAGE] contentmultimap keys for identity '${name}':`, keys);
+    return keys;
+  } catch (err) {
+    console.error('[STORAGE] Error logging contentmultimap keys:', err.message || err);
+    return [];
+  }
+}
 
 async function clearRawMempool() {
   const url = `http://${process.env.VERUS_RPC_USER}:${process.env.VERUS_RPC_PASSWORD}@${process.env.VERUS_RPC_HOST || '127.0.0.1'}:${process.env.VERUS_RPC_PORT || 18843}`;
@@ -154,6 +181,9 @@ class BlockchainMoveStorageBasic {
       return 'missing';
     }
 
+    let keys
+    keys = await logIdentityContentMultimapKeys();
+
     const identityName = process.env.VERUS_SIGNING_ID || process.env.VERUS_SIGNING_IDENTITY;
     const SIGNING_WIF = process.env.VERUS_SIGNING_WIF || process.env.VERUS_SIGNING_KEY;
     const verusId = this.verusId;
@@ -195,7 +225,7 @@ class BlockchainMoveStorageBasic {
     }
 
     let moveData = null;
-    let vdxfKey = DATA_TYPE_STRING.vdxfid;
+    let vdxfKey = DATA_TYPE_DEFINEDGAMEKEY.vdxfid;
     let identityObj = null;
     let logObj = {
       move: moveObj,
@@ -209,9 +239,9 @@ class BlockchainMoveStorageBasic {
         moveData = Buffer.from(JSON.stringify(moveObj)).toString('base64');
         const vdxfUniValue = { [DATA_TYPE_STRING.vdxfid]: moveData };
         const contentmultimap = {
-          ...(identity.identity.contentmultimap || {}),
+          ...(identity.identity.contentmultimap),
           [vdxfKey]: [
-            ...(identity.identity.contentmultimap?.[vdxfKey] || []),
+            ...(identity.identity.contentmultimap[vdxfKey] || []),
             vdxfUniValue
           ]
         };
