@@ -36,6 +36,7 @@ model Game {
   boardState Json
   status     String   @default("IN_PROGRESS") // e.g., IN_PROGRESS, COMPLETED, ABORTED
   winner     String? // 'WHITE', 'BLACK', 'DRAW'
+  mode       String   @default("original") // "original", "normal", "tournament"
 
   // Blockchain storage tracking
   blockchainTxId      String? // Transaction ID on Verus blockchain
@@ -43,6 +44,7 @@ model Game {
   blockchainStoredAt  DateTime? // When the game was stored on blockchain
 
   moves Move[]
+  gameSession GameSession?
 }
 
 model Move {
@@ -50,6 +52,8 @@ model Move {
   game      Game     @relation(fields: [gameId], references: [id])
   gameId    String
   move      String   // e.g., "e2e4"
+  movePackage   Json?     // full signed package {subIdName, player, moveNum, move, prevHash}
+  signature     String?   // signature for this move
   createdAt DateTime @default(now())
   blockchainTxId String?
   blockchainVdxfKey String?
@@ -60,4 +64,24 @@ model ProcessedChallenge {
   id        String   @id
   data      Json
   createdAt DateTime @default(now())
+}
+
+model GameSession {
+  id              String    @id @default(cuid())
+  game            Game      @relation(fields: [gameId], references: [id])
+  gameId          String    @unique
+  subIdName       String?   // "game0001" — null until assigned
+  subIdAddress    String?   // i-address of the SubID once created
+  gameHash        String?   // final SHA256 hash chain result
+  whiteFinalSig   String?   // white's signature on gameHash
+  blackFinalSig   String?   // black's signature on gameHash
+  verifiedAt      DateTime? // when server verified all moves + sigs
+  storedAt        DateTime? // when written to chain
+  txId            String?   // blockchain tx ID
+  createdAt       DateTime  @default(now())
+}
+
+model GameCounter {
+  id        String  @id @default("singleton")
+  nextGame  Int     @default(1)
 }
