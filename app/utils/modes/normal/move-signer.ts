@@ -1,4 +1,4 @@
-import { createHash, createHmac } from 'crypto';
+import { createHash, createHmac, timingSafeEqual } from 'crypto';
 
 /**
  * Pluggable move signer interface.
@@ -35,7 +35,8 @@ export class ServerMoveSigner implements MoveSigner {
 
   verify(message: string, signature: string): boolean {
     const expected = this.sign(message);
-    return signature === expected;
+    if (signature.length !== expected.length) return false;
+    return timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
   }
 
   getPublicKey(): string {

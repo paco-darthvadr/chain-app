@@ -45,12 +45,22 @@ export async function updateGame(gameId: string, boardState: any, moveInfo?: { m
         // Mode handler integration for move signing
         let signedPackage = null;
         if (moveInfo) {
-            const handler = getModeHandler((game as any).mode);
+            const handler = getModeHandler(game.mode);
             const uciMove = toUCI(moveInfo.move);
+
+            // Resolve the player's verusId from the game object.
+            // moveInfo.player may contain a Prisma cuid (from localStorage),
+            // but the signed package needs the actual VerusID (e.g., "alice@").
+            let playerVerusId = moveInfo.player;
+            if (game.whitePlayerId === moveInfo.player) {
+                playerVerusId = game.whitePlayer.verusId;
+            } else if (game.blackPlayerId === moveInfo.player) {
+                playerVerusId = game.blackPlayer.verusId;
+            }
 
             signedPackage = await handler.onMove(game, {
                 move: uciMove,
-                player: moveInfo.player,
+                player: playerVerusId,
                 boardState,
             });
 

@@ -16,7 +16,12 @@ export async function POST(request: Request, { params }: { params: { gameId: str
     if (!gameForMode) {
         return NextResponse.json({ error: 'Game not found' }, { status: 404 });
     }
-    if ((gameForMode as any).mode === 'normal') {
+    if (gameForMode.mode === 'normal') {
+        // Only store completed games
+        if (gameForMode.status !== 'COMPLETED') {
+            return NextResponse.json({ error: 'Game is not completed' }, { status: 400 });
+        }
+
         const handler = getModeHandler('normal');
 
         // Run game-end verification first
