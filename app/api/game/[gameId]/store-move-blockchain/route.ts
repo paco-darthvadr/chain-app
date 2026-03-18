@@ -6,6 +6,15 @@ import type { Prisma } from '@prisma/client';
 export async function POST(req: NextRequest, { params }: { params: { gameId: string } }) {
   const resolvedParams = await params;
   const { gameId } = resolvedParams;
+
+  // Check game mode — Normal mode handles move signing through the /move route
+  const gameForMode = await prisma.game.findUnique({ where: { id: gameId }, select: { mode: true } });
+  if ((gameForMode as any)?.mode === 'normal') {
+      return NextResponse.json({
+          success: true,
+          message: 'Normal mode: moves are signed via the server action, not stored individually on-chain',
+      });
+  }
   const reqBody = await req.json();
   const { move, player } = reqBody;
 

@@ -112,8 +112,16 @@ io.on('connection', (socket) => {
   });
 
   socket.on('move-made', (data) => {
-    // Broadcast to the specific game room, excluding the sender
+    // Broadcast board state to the specific game room, excluding the sender
+    // IMPORTANT: emit boardState directly (not wrapped in an object) to stay
+    // backward-compatible with the frontend listener in GameClient.tsx which
+    // passes the received payload directly to createBoardFromState().
     socket.to(data.gameId).emit('update-board-state', data.boardState);
+
+    // Emit signed package separately if available (Normal mode)
+    if (data.signedPackage) {
+        socket.to(data.gameId).emit('move-signed', data.signedPackage);
+    }
     console.log(`Move made in game ${data.gameId}, broadcasting to room.`);
   });
 

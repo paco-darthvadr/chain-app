@@ -2,12 +2,38 @@ import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import type { Prisma } from '@prisma/client';
 import { BlockchainStorage } from '../../../../utils/blockchain-storage.js';
+import { getModeHandler } from '@/app/utils/modes/mode-resolver';
 
 // POST /api/game/[gameId]/store-blockchain - Store completed game on blockchain
 export async function POST(request: Request, { params }: { params: { gameId: string } }) {
     console.log('API route called for gameId:', params.gameId, 'at', new Date().toISOString());
-    
-    // Use a database transaction to prevent race conditions
+
+    // Check game mode — Normal mode uses its own flow outside the transaction
+    const gameForMode = await prisma.game.findUnique({
+        where: { id: params.gameId },
+        include: { whitePlayer: true, blackPlayer: true },
+    });
+    if (!gameForMode) {
+        return NextResponse.json({ error: 'Game not found' }, { status: 404 });
+    }
+    if ((gameForMode as any).mode === 'normal') {
+        const handler = getModeHandler('normal');
+
+        // Run game-end verification first
+        const endResult = await handler.onGameEnd(gameForMode);
+        if (!endResult || !endResult.verified) {
+            return NextResponse.json({
+                success: false,
+                error: 'Game verification failed',
+            }, { status: 400 });
+        }
+
+        // Store on chain
+        const result = await handler.storeOnChain(gameForMode);
+        return NextResponse.json(result);
+    }
+
+    // Original mode: fall through to existing $transaction logic below
     return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         try {
             // Get the game data from database

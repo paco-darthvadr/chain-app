@@ -306,7 +306,10 @@ const GameClient = ({ game }: GameClientProps) => {
             moves: [...moves, move],
         };
         
-        const updatedGame = await updateGame(gameState.id, newBoardState);
+        const updatedGame = await updateGame(gameState.id, newBoardState, {
+            move: move,
+            player: playerVerusId || '',
+        });
 
         if (updatedGame && updatedGame.boardState) {
             // The server has confirmed the move and returned the new authoritative state.
@@ -318,7 +321,11 @@ const GameClient = ({ game }: GameClientProps) => {
 
             // Emit the move to the other player
             if (socket) {
-                socket.emit('move-made', { gameId: gameState.id, boardState: updatedGame.boardState });
+                socket.emit('move-made', {
+                    gameId: gameState.id,
+                    boardState: updatedGame.boardState,
+                    signedPackage: (updatedGame as any).signedPackage || null,
+                });
             }
         } else {
             // If the update failed, we should consider reverting the optimistic update.
