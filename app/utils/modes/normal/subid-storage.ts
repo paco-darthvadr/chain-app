@@ -99,14 +99,33 @@ export async function createGameSubId(subIdName: string): Promise<{ address: str
       minimumsignatures: 1,
     },
   }]);
-  console.log(`[SubID] Registered ${fullName}:`, identity);
+  console.log(`[SubID] Registered ${fullName}, txid:`, identity);
 
-  // Wait for registration to be mined before looking up
-  await waitForConfirmation(identity, 120000);
+  // Try to get the identity address immediately (may be in mempool)
+  // If not found yet, wait briefly for it to be mined
+  for (let attempt = 0; attempt < 6; attempt++) {
+    try {
+      const registered = await rpcCall('getidentity', [fullName]);
+      if (registered?.identity?.identityaddress) {
+        return { address: registered.identity.identityaddress };
+      }
+    } catch (e) {
+      // Not found yet
+    }
+    if (attempt < 5) {
+      console.log(`[SubID] ${fullName} not found yet, waiting 10s... (${attempt + 1}/6)`);
+      await new Promise(resolve => setTimeout(resolve, 10000));
+    }
+  }
 
-  // Get the identity address
-  const registered = await rpcCall('getidentity', [fullName]);
-  return { address: registered.identity.identityaddress };
+  // Return the nameid from the commitment as fallback
+  const nameid = commitment.namereservation?.nameid;
+  if (nameid) {
+    console.log(`[SubID] ${fullName} not confirmed yet, using nameid: ${nameid}`);
+    return { address: nameid };
+  }
+
+  throw new Error(`${fullName} registered but not yet visible on chain. Try storing again in ~60s.`);
 }
 
 export interface GameData {
