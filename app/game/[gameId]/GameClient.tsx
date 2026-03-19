@@ -74,6 +74,11 @@ const GameClient = ({ game }: GameClientProps) => {
     const [showcaseSigningPhase, setShowcaseSigningPhase] = useState<'open' | 'close' | null>(null);
     const [showcaseMessage, setShowcaseMessage] = useState<string>('');
     const [showcaseReady, setShowcaseReady] = useState(false);
+    const showcaseOnSigned = useCallback(() => {}, []);
+    const showcaseOnBothSigned = useCallback(() => {
+      setShowcaseSigningPhase(null);
+      setShowcaseReady(true);
+    }, []);
     const router = useRouter();
     
     // Ref to track if we've already updated the game status to prevent duplicate database updates
@@ -595,13 +600,8 @@ const GameClient = ({ game }: GameClientProps) => {
             })()}
             phase={showcaseSigningPhase}
             messageToSign={showcaseMessage}
-            onSigned={useCallback(() => {
-              // Individual player signed — don't unlock yet
-            }, [])}
-            onBothSigned={useCallback(() => {
-              setShowcaseSigningPhase(null);
-              setShowcaseReady(true);
-            }, [])}
+            onSigned={showcaseOnSigned}
+            onBothSigned={showcaseOnBothSigned}
           />
         )}
         <div className="flex flex-col md:flex-row gap-4 p-4 max-w-7xl mx-auto">
