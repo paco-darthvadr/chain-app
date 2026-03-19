@@ -13,6 +13,7 @@ export async function GET(request: Request, { params }: { params: { gameId: stri
             include: {
                 whitePlayer: true,
                 blackPlayer: true,
+                gameSession: true,
             },
         });
         if (!game) {

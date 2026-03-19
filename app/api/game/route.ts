@@ -48,6 +48,30 @@ export async function POST(req: Request) {
                     subIdName,
                 },
             });
+
+            // Fire-and-forget: start SubID registration so it's ready when game ends
+            // The registernamecommitment goes into mempool immediately,
+            // registeridentity needs it mined (~60s), so starting early is key.
+            (async () => {
+                try {
+                    const axios = require('axios');
+                    const VERUS_RPC_URL = `http://${process.env.VERUS_RPC_USER}:${process.env.VERUS_RPC_PASSWORD}@${process.env.VERUS_RPC_HOST || '127.0.0.1'}:${process.env.VERUS_RPC_PORT || 18843}`;
+                    const parentAddress = process.env.CHESSGAME_IDENTITY_ADDRESS;
+
+                    const commitRes = await axios.post(VERUS_RPC_URL, {
+                        method: 'registernamecommitment',
+                        params: [subIdName, parentAddress, '', parentAddress],
+                        id: 1, jsonrpc: '2.0',
+                    });
+                    if (commitRes.data.error) {
+                        console.log(`[SubID] Commitment for ${subIdName} failed (may already exist):`, commitRes.data.error.message);
+                        return;
+                    }
+                    console.log(`[SubID] Commitment for ${subIdName} submitted:`, commitRes.data.result.txid);
+                } catch (e: any) {
+                    console.error(`[SubID] Early commitment for ${subIdName} failed:`, e.message);
+                }
+            })();
         }
 
         const socket = io(process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'http://192.168.0.162:3001');

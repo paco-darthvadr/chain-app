@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import confetti from 'canvas-confetti';
-// import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
 interface GameOverProps {
@@ -12,266 +11,202 @@ interface GameOverProps {
   rematchOffered: boolean;
 }
 
-// Simple window size hook
-const useWindowSize = () => {
-  const [size, setSize] = useState({ width: 0, height: 0 });
-  
-  useEffect(() => {
-    const updateSize = () => {
-      setSize({ width: window.innerWidth, height: window.innerHeight });
-    };
-    
-    updateSize();
-    window.addEventListener('resize', updateSize);
-    return () => window.removeEventListener('resize', updateSize);
-  }, []);
-  
-  return size;
-};
-
 const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematchOffered }) => {
-  const { width, height } = useWindowSize();
-  const [blockchainStatus, setBlockchainStatus] = useState<'storing' | 'stored' | 'failed' | 'processing' | null>(null);
-  const [isStoring, setIsStoring] = useState(false);
-  const [blockchainMessage, setBlockchainMessage] = useState<string>('');
-  const [retryCount, setRetryCount] = useState(0);
-  const maxRetries = 3;
+  const [blockchainStatus, setBlockchainStatus] = useState<'idle' | 'verifying' | 'verified' | 'storing' | 'stored' | 'failed'>(
+    game?.blockchainTxId && game.blockchainTxId !== 'PROCESSING' ? 'stored' : 'idle'
+  );
+  const [blockchainMessage, setBlockchainMessage] = useState('');
+  const [gameSession, setGameSession] = useState<any>(null);
 
-  // Ref to track if we've already attempted to store for this gameId
-  const blockchainStoredGameIds = useRef(new Set<string>());
-  const processingTimeouts = useRef(new Map<string, NodeJS.Timeout>());
-
-  // Cleanup function to clear timeouts
-  const clearProcessingTimeout = (gameId: string) => {
-    const timeout = processingTimeouts.current.get(gameId);
-    if (timeout) {
-      clearTimeout(timeout);
-      processingTimeouts.current.delete(gameId);
-    }
-  };
-
-  // Function to check blockchain status
-  const checkBlockchainStatus = async (gameId: string) => {
-    try {
-      const res = await fetch(`/api/game/${gameId}`);
-      if (res.ok) {
-        const gameData = await res.json();
-        if (gameData.blockchainTxId && gameData.blockchainTxId !== 'PROCESSING') {
-          setBlockchainStatus('stored');
-          setBlockchainMessage('Game stored on blockchain successfully!');
-          clearProcessingTimeout(gameId);
-          return true;
-        }
-      }
-    } catch (error) {
-      console.error('Error checking blockchain status:', error);
-    }
-    return false;
-  };
-
-  // Function to poll for blockchain status when processing
-  const pollBlockchainStatus = async (gameId: string) => {
-    const pollInterval = 2000; // 2 seconds
-    const maxPolls = 30; // 1 minute max
-    let pollCount = 0;
-
-    const poll = async () => {
-      if (pollCount >= maxPolls) {
-        setBlockchainStatus('failed');
-        setBlockchainMessage('Blockchain storage timed out');
-        clearProcessingTimeout(gameId);
-        blockchainStoredGameIds.current.delete(gameId);
-        return;
-      }
-
-      const isStored = await checkBlockchainStatus(gameId);
-      if (isStored) {
-        return;
-      }
-
-      pollCount++;
-      setTimeout(poll, pollInterval);
-    };
-
-    poll();
-  };
-
-  useEffect(() => {
-    if (
-      game &&
-      game.status === 'COMPLETED' &&
-      !game.blockchainTxId &&
-      !blockchainStoredGameIds.current.has(game.id)
-    ) {
-      blockchainStoredGameIds.current.add(game.id);
-      setBlockchainStatus('storing');
-      setBlockchainMessage('Storing on blockchain...');
-      
-      const storeOnBlockchain = async () => {
-        setIsStoring(true);
-        try {
-          const res = await fetch(`/api/game/${game.id}/store-blockchain`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-          });
-          
-          const data = await res.json();
-          
-          if (res.ok && data.success) {
-            setBlockchainStatus('stored');
-            setBlockchainMessage(data.message || 'Game stored on blockchain successfully!');
-            clearProcessingTimeout(game.id);
-          } else if (res.status === 409 && data.status === 'processing') {
-            // Game is being processed by another request
-            setBlockchainStatus('processing');
-            setBlockchainMessage('Game is being processed for blockchain storage...');
-            
-            // Poll for status updates
-            pollBlockchainStatus(game.id);
-          } else {
-            // Handle retry logic for other errors
-            if (retryCount < maxRetries) {
-              setRetryCount(prev => prev + 1);
-              setBlockchainMessage(`Retrying... (${retryCount + 1}/${maxRetries})`);
-              
-              // Retry after 3 seconds
-              setTimeout(() => {
-                storeOnBlockchain();
-              }, 3000);
-            } else {
-              setBlockchainStatus('failed');
-              setBlockchainMessage(data.error || 'Blockchain storage failed');
-              blockchainStoredGameIds.current.delete(game.id);
-            }
-          }
-        } catch (error) {
-          console.error('Blockchain storage error:', error);
-          
-          // Handle retry logic for network errors
-          if (retryCount < maxRetries) {
-            setRetryCount(prev => prev + 1);
-            setBlockchainMessage(`Network error, retrying... (${retryCount + 1}/${maxRetries})`);
-            
-            // Retry after 3 seconds
-            setTimeout(() => {
-              storeOnBlockchain();
-            }, 3000);
-          } else {
-            setBlockchainStatus('failed');
-            setBlockchainMessage('Network error - blockchain storage failed');
-            blockchainStoredGameIds.current.delete(game.id);
-          }
-        } finally {
-          setIsStoring(false);
-        }
-      };
-      
-      storeOnBlockchain();
-    }
-
-    // Cleanup function
-    return () => {
-      if (game?.id) {
-        clearProcessingTimeout(game.id);
-      }
-    };
-  }, [game?.status, game?.blockchainTxId, game?.id, retryCount]);
-
-  useEffect(() => {
-    if (
-      game &&
-      game.status === 'COMPLETED' &&
-      game.blockchainTxId &&
-      game.blockchainTxId !== 'PROCESSING'
-    ) {
-      setBlockchainStatus('stored');
-      setBlockchainMessage('Game stored on blockchain successfully!');
-    }
-  }, [game?.status, game?.blockchainTxId, game?.id]);
-
-  // Trigger confetti when game is completed
+  // Trigger confetti
   useEffect(() => {
     if (game?.status === 'COMPLETED' && winnerName) {
       const duration = 3000;
       const animationEnd = Date.now() + duration;
       const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
+      const randomInRange = (min: number, max: number) => Math.random() * (max - min) + min;
 
-      const randomInRange = (min: number, max: number) => {
-        return Math.random() * (max - min) + min;
-      };
-
-      const interval: any = setInterval(function() {
+      const interval: any = setInterval(() => {
         const timeLeft = animationEnd - Date.now();
-
-        if (timeLeft <= 0) {
-          return clearInterval(interval);
-        }
-
+        if (timeLeft <= 0) return clearInterval(interval);
         const particleCount = 50 * (timeLeft / duration);
-        confetti(Object.assign({}, defaults, {
-          particleCount,
-          origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 }
-        }));
-        confetti(Object.assign({}, defaults, {
-          particleCount,
-          origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 }
-        }));
+        confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } });
+        confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } });
       }, 250);
     }
   }, [game?.status, winnerName]);
 
-  const getStatusIcon = () => {
-    switch (blockchainStatus) {
-      case 'storing':
-        return '⏳';
-      case 'processing':
-        return '🔄';
-      case 'stored':
-        return '✅';
-      case 'failed':
-        return '❌';
-      default:
-        return null;
+  // Fetch game session data on mount
+  useEffect(() => {
+    if (!game?.id) return;
+    (async () => {
+      try {
+        const res = await fetch(`/api/game/${game.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.gameSession) {
+            setGameSession(data.gameSession);
+            if (data.gameSession.verifiedAt) {
+              setBlockchainStatus('verified');
+            }
+          }
+        }
+      } catch (e) {
+        // Non-fatal
+      }
+    })();
+  }, [game?.id]);
+
+  const handleVerifyAndStore = async () => {
+    if (!game?.id) return;
+
+    setBlockchainStatus('verifying');
+    setBlockchainMessage('Verifying move chain and signatures...');
+
+    try {
+      const res = await fetch(`/api/game/${game.id}/store-blockchain`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        setBlockchainStatus('stored');
+        setBlockchainMessage(`Stored on blockchain! SubID: ${data.subIdName || ''}`);
+        if (data.transactionId) {
+          setBlockchainMessage(prev => prev + ` | TX: ${data.transactionId.substring(0, 16)}...`);
+        }
+      } else {
+        setBlockchainStatus('failed');
+        setBlockchainMessage(data.error || 'Storage failed');
+      }
+    } catch (error: any) {
+      setBlockchainStatus('failed');
+      setBlockchainMessage(error.message || 'Network error');
     }
   };
 
-  const getStatusColor = () => {
-    switch (blockchainStatus) {
-      case 'storing':
-      case 'processing':
-        return 'text-yellow-600';
-      case 'stored':
-        return 'text-green-600';
-      case 'failed':
-        return 'text-red-600';
-      default:
-        return 'text-gray-600';
-    }
-  };
+  const moveCount = (() => {
+    try {
+      const bs = game?.boardState;
+      if (bs?.moves) return bs.moves.length;
+    } catch {}
+    return '?';
+  })();
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 text-center">
-        <h2 className="text-2xl font-bold mb-4">
-          {winnerName ? `🎉 ${winnerName} wins!` : "Game Over"}
+      <div className="bg-card border rounded-lg p-6 max-w-md w-full mx-4 text-center space-y-4 max-h-[90vh] overflow-y-auto">
+        <h2 className="text-2xl font-bold">
+          {winnerName ? `${winnerName} wins!` : "Game Over"}
         </h2>
-        
-        {/* Blockchain Status Display */}
-        {blockchainStatus && (
-          <div className={`mb-4 p-3 rounded-lg border ${getStatusColor()} bg-gray-50`}>
-            <div className="flex items-center justify-center space-x-2">
-              {getStatusIcon() && <span className="text-lg">{getStatusIcon()}</span>}
-              <span className="text-sm font-medium">{blockchainMessage}</span>
+
+        {/* Game Summary */}
+        <div className="text-left text-sm space-y-2 bg-muted p-3 rounded-md">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">White:</span>
+            <span className="font-medium">{game?.whitePlayer?.displayName || game?.whitePlayer?.verusId || '?'}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Black:</span>
+            <span className="font-medium">{game?.blackPlayer?.displayName || game?.blackPlayer?.verusId || '?'}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Moves:</span>
+            <span className="font-medium">{moveCount}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Mode:</span>
+            <span className="font-medium">{game?.mode || 'original'}</span>
+          </div>
+          {gameSession?.subIdName && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">SubID:</span>
+              <span className="font-mono text-xs">{gameSession.subIdName}.chessgame@</span>
             </div>
-            {isStoring && (
-              <div className="mt-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600 mx-auto"></div>
+          )}
+        </div>
+
+        {/* Hash Chain Info (Normal mode) */}
+        {game?.mode === 'normal' && gameSession && (
+          <div className="text-left text-xs space-y-1 bg-muted p-3 rounded-md font-mono">
+            <p className="text-muted-foreground text-sm font-sans font-medium mb-2">Hash Chain</p>
+            {gameSession.gameHash && (
+              <div>
+                <span className="text-muted-foreground">Game Hash: </span>
+                <span className="break-all">{gameSession.gameHash}</span>
+              </div>
+            )}
+            {gameSession.whiteFinalSig && (
+              <div>
+                <span className="text-muted-foreground">White Sig: </span>
+                <span className="break-all">{gameSession.whiteFinalSig.substring(0, 24)}...</span>
+              </div>
+            )}
+            {gameSession.blackFinalSig && (
+              <div>
+                <span className="text-muted-foreground">Black Sig: </span>
+                <span className="break-all">{gameSession.blackFinalSig.substring(0, 24)}...</span>
+              </div>
+            )}
+            {gameSession.verifiedAt && (
+              <div className="text-green-600">
+                Chain verified at {new Date(gameSession.verifiedAt).toLocaleTimeString()}
               </div>
             )}
           </div>
         )}
 
-        <div className="space-y-4">
+        {/* Blockchain Storage */}
+        {game?.mode === 'normal' && (
+          <div className="space-y-2">
+            {blockchainStatus === 'idle' && (
+              <button
+                onClick={handleVerifyAndStore}
+                className="w-full bg-green-600 text-white py-2 px-4 rounded hover:bg-green-700 transition-colors"
+              >
+                Verify & Store on Blockchain
+              </button>
+            )}
+            {blockchainStatus === 'verified' && (
+              <button
+                onClick={handleVerifyAndStore}
+                className="w-full bg-green-600 text-white py-2 px-4 rounded hover:bg-green-700 transition-colors"
+              >
+                Store on Blockchain
+              </button>
+            )}
+            {blockchainStatus === 'verifying' && (
+              <div className="text-yellow-600 text-sm py-2">
+                <div className="animate-pulse">{blockchainMessage}</div>
+              </div>
+            )}
+            {blockchainStatus === 'storing' && (
+              <div className="text-yellow-600 text-sm py-2">
+                <div className="animate-pulse">{blockchainMessage}</div>
+              </div>
+            )}
+            {blockchainStatus === 'stored' && (
+              <div className="text-green-600 text-sm py-2 bg-green-50 rounded p-2">
+                {blockchainMessage}
+              </div>
+            )}
+            {blockchainStatus === 'failed' && (
+              <div className="space-y-2">
+                <div className="text-red-600 text-sm">{blockchainMessage}</div>
+                <button
+                  onClick={handleVerifyAndStore}
+                  className="w-full bg-red-500 text-white py-2 px-4 rounded hover:bg-red-600 transition-colors text-sm"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="space-y-2 pt-2">
           {!rematchOffered && (
             <button
               onClick={onRematch}
@@ -280,11 +215,14 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
               Offer Rematch
             </button>
           )}
+          {rematchOffered && (
+            <p className="text-sm text-muted-foreground">Rematch offered, waiting for opponent...</p>
+          )}
           <Link
             href="/dashboard"
-            className="w-full bg-gray-500 text-white py-2 px-4 rounded hover:bg-gray-600 transition-colors inline-block text-center"
+            className="w-full bg-muted text-foreground py-2 px-4 rounded hover:bg-muted/80 transition-colors inline-block text-center"
           >
-            Go Back Home
+            Back to Dashboard
           </Link>
         </div>
       </div>
@@ -292,4 +230,4 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
   );
 };
 
-export default GameOver; 
+export default GameOver;
