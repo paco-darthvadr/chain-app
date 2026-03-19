@@ -22,6 +22,27 @@ async function rpcCall(method: string, params: any[] = []): Promise<any> {
  * Register a SubID under ChessGame@ for a completed game.
  * Uses registernamecommitment + registeridentity two-step process.
  */
+/**
+ * Helper to wait for a commitment tx to be mined.
+ * Polls getrawtransaction confirmations every 10s, up to maxWait ms.
+ */
+async function waitForConfirmation(txid: string, maxWait: number = 120000): Promise<boolean> {
+  const start = Date.now();
+  while (Date.now() - start < maxWait) {
+    try {
+      const tx = await rpcCall('getrawtransaction', [txid, 1]);
+      if (tx && tx.confirmations && tx.confirmations > 0) {
+        console.log(`[SubID] TX ${txid.substring(0, 16)}... confirmed (${tx.confirmations} conf)`);
+        return true;
+      }
+    } catch (e) {
+      // TX not found yet, keep waiting
+    }
+    await new Promise(resolve => setTimeout(resolve, 10000));
+  }
+  return false;
+}
+
 export async function createGameSubId(subIdName: string): Promise<{ address: string }> {
   const parentName = process.env.CHESSGAME_IDENTITY_NAME || 'ChessGame@';
   const fullName = `${subIdName}.${parentName.replace('@', '')}@`;
@@ -39,17 +60,31 @@ export async function createGameSubId(subIdName: string): Promise<{ address: str
 
   // Step 1: registernamecommitment
   // Params: name, controladdress, referralidentity, parentnameorid, sourceoffunds
-  // Name is just the SubID name (e.g., "game0001"), parent is the ChessGame@ i-address
   const parentAddress = process.env.CHESSGAME_IDENTITY_ADDRESS;
-  const commitment = await rpcCall('registernamecommitment', [
-    subIdName,
-    parentAddress,
-    '',
-    parentAddress,
-  ]);
-  console.log(`[SubID] Name commitment for ${fullName}:`, commitment);
+  let commitment;
+  try {
+    commitment = await rpcCall('registernamecommitment', [
+      subIdName,
+      parentAddress,
+      '',
+      parentAddress,
+    ]);
+    console.log(`[SubID] Name commitment for ${fullName}:`, commitment);
+  } catch (e: any) {
+    // Commitment may already exist from game-start fire-and-forget
+    // Try to find a recent unspent commitment in the mempool
+    console.log(`[SubID] Commitment failed (may already exist): ${e.message}`);
+    throw new Error(`SubID commitment failed for ${fullName}: ${e.message}. The commitment may not be mined yet — try again in ~60 seconds.`);
+  }
 
-  // Step 2: registeridentity (after commitment is mined — may need to wait)
+  // Step 2: wait for commitment to be mined
+  console.log(`[SubID] Waiting for commitment ${commitment.txid.substring(0, 16)}... to be mined...`);
+  const confirmed = await waitForConfirmation(commitment.txid, 120000);
+  if (!confirmed) {
+    throw new Error(`SubID commitment for ${fullName} not confirmed after 2 minutes. Try again later.`);
+  }
+
+  // Step 3: registeridentity
   const identity = await rpcCall('registeridentity', [{
     txid: commitment.txid,
     namereservation: commitment.namereservation,

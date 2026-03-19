@@ -357,6 +357,11 @@ const GameClient = ({ game }: GameClientProps) => {
                 const opponentPlayer = currentPlayer === 'white' ? gameState.blackPlayer : gameState.whitePlayer;
                 setWinner(opponentPlayer);
                 setGameResult('resignation');
+
+                // Notify opponent via socket
+                if (socket) {
+                    socket.emit('leave-game', { gameId: gameState.id });
+                }
             }
         } catch (error) {
             console.error('Error resigning:', error);

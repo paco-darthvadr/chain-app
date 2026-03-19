@@ -36,26 +36,50 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
     }
   }, [game?.status, winnerName]);
 
-  // Fetch game session data on mount
+  // Fetch game session data on mount, auto-verify if not yet verified
   useEffect(() => {
-    if (!game?.id) return;
+    if (!game?.id || game?.mode !== 'normal') return;
     (async () => {
       try {
+        // First fetch current session state
         const res = await fetch(`/api/game/${game.id}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.gameSession) {
-            setGameSession(data.gameSession);
-            if (data.gameSession.verifiedAt) {
-              setBlockchainStatus('verified');
-            }
+        if (!res.ok) return;
+        const data = await res.json();
+
+        if (data.gameSession?.verifiedAt) {
+          // Already verified
+          setGameSession(data.gameSession);
+          setBlockchainStatus('verified');
+          return;
+        }
+
+        // Not verified yet — trigger verification via a verify-only endpoint
+        // We call store-blockchain which runs onGameEnd (verify) then storeOnChain
+        // But we just want verification. Let's call a lightweight verify endpoint.
+        // For now, we trigger onGameEnd by fetching the session after a short delay
+        // to allow the server action endGame to propagate.
+        setBlockchainStatus('verifying');
+        setBlockchainMessage('Verifying move chain...');
+
+        const verifyRes = await fetch(`/api/game/${game.id}/verify`, { method: 'POST' });
+        if (verifyRes.ok) {
+          const verifyData = await verifyRes.json();
+          if (verifyData.gameSession) {
+            setGameSession(verifyData.gameSession);
+            setBlockchainStatus('verified');
+          } else {
+            setBlockchainStatus('idle');
           }
+        } else {
+          // Fallback: just show what we have
+          if (data.gameSession) setGameSession(data.gameSession);
+          setBlockchainStatus('idle');
         }
       } catch (e) {
-        // Non-fatal
+        setBlockchainStatus('idle');
       }
     })();
-  }, [game?.id]);
+  }, [game?.id, game?.mode]);
 
   const handleVerifyAndStore = async () => {
     if (!game?.id) return;
