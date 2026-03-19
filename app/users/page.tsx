@@ -5,9 +5,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import Link from 'next/link';
 import { useState, useEffect, useCallback, useRef, use } from 'react';
 import { useRouter } from 'next/navigation';
-import { io, Socket } from 'socket.io-client';
 import { getUsers, getGamesForUser, deleteUser } from './actions';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
+import { getGlobalSocket } from '@/components/dashboard/SocketRegistration';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import BlockchainInfoDialog from '@/components/chessboard/BlockchainInfoDialog';
 
@@ -18,7 +18,7 @@ interface User {
     avatarUrl: string | null;
 }
 
-let socket: Socket;
+// Uses global socket from SocketRegistration — no local socket creation
 
 const getBaseUrl = () => {
     return process.env.NEXT_PUBLIC_APP_URL;
@@ -56,7 +56,7 @@ function UsersPage() {
             if (newCurrentId && fetchedUsers.find((u: User) => u.id === newCurrentId)) {
                 setCurrentUserId(newCurrentId);
                 localStorage.setItem('currentUser', newCurrentId);
-                if (socket) socket.emit('register-user', newCurrentId);
+                // Registration handled by SocketRegistration component
                 const games = await getGamesForUser(newCurrentId);
                 setUserGames(games);
             } else {
@@ -75,62 +75,47 @@ function UsersPage() {
     }, []);
     
     useEffect(() => {
-        console.log('Verifying NEXT_PUBLIC_APP_URL:', process.env.NEXT_PUBLIC_APP_URL);
-        
-        const socketInitializer = async () => {
-            const socketURL = process.env.NEXT_PUBLIC_SOCKET_URL;
-            socket = io(socketURL);
-
-            socket.on('connect', () => {
-                console.log('Connected to socket server from UsersPage');
-                fetchUsersAndGames(localStorage.getItem('currentUser'));
-            });
-
-            socket.on('refresh-game-list', () => {
-                console.log('Received refresh-game-list event. Refetching games.');
-                const savedUser = localStorage.getItem('currentUser');
-                if (savedUser) {
-                    fetchUsersAndGames(savedUser);
-                }
-            });
-
-            socket.on('refresh-user-list', () => {
-                console.log('Received refresh-user-list event. Refetching users.');
-                const savedUser = localStorage.getItem('currentUser');
-                fetchUsersAndGames(savedUser);
-            });
-
-            socket.on('new-challenge', ({ challengerId, challengerName }) => {
-                const currentUser = localStorage.getItem('currentUser');
-                if (challengerId !== currentUser && !incomingChallenge) {
-                    setIncomingChallenge({ challengerId, challengerName });
-                }
-            });
-
-            socket.on('challenge-failed', ({ message }) => {
-                alert(message);
-                setChallengeSent(null);
-            });
-
-            socket.on('game-started', ({ gameId }) => {
-                router.push(`/game/${gameId}`);
-            });
-
-            socket.on('challenge-denied', ({ declinerName }) => {
-                alert(`${declinerName} declined your challenge.`);
-                setChallengeSent(null);
-            });
-        };
-        
-        socketInitializer();
-
+        // Fetch users on mount
         const savedUser = localStorage.getItem('currentUser');
         fetchUsersAndGames(savedUser);
 
-        return () => {
-            if (socket) {
-                socket.disconnect();
+        // Listen for socket events relayed via SocketRegistration
+        const onChallenge = (e: Event) => {
+            const { challengerId, challengerName } = (e as CustomEvent).detail;
+            const currentUser = localStorage.getItem('currentUser');
+            if (challengerId !== currentUser) {
+                setIncomingChallenge({ challengerId, challengerName });
             }
+        };
+        const onChallengeFailed = (e: Event) => {
+            alert((e as CustomEvent).detail.message);
+            setChallengeSent(null);
+        };
+        const onChallengeDenied = (e: Event) => {
+            alert(`${(e as CustomEvent).detail.declinerName} declined your challenge.`);
+            setChallengeSent(null);
+        };
+        const onRefreshGames = () => {
+            const saved = localStorage.getItem('currentUser');
+            if (saved) fetchUsersAndGames(saved);
+        };
+        const onRefreshUsers = () => {
+            const saved = localStorage.getItem('currentUser');
+            fetchUsersAndGames(saved);
+        };
+
+        window.addEventListener('socket:new-challenge', onChallenge);
+        window.addEventListener('socket:challenge-failed', onChallengeFailed);
+        window.addEventListener('socket:challenge-denied', onChallengeDenied);
+        window.addEventListener('socket:refresh-game-list', onRefreshGames);
+        window.addEventListener('socket:refresh-user-list', onRefreshUsers);
+
+        return () => {
+            window.removeEventListener('socket:new-challenge', onChallenge);
+            window.removeEventListener('socket:challenge-failed', onChallengeFailed);
+            window.removeEventListener('socket:challenge-denied', onChallengeDenied);
+            window.removeEventListener('socket:refresh-game-list', onRefreshGames);
+            window.removeEventListener('socket:refresh-user-list', onRefreshUsers);
         };
     }, [fetchUsersAndGames]);
 
@@ -143,15 +128,16 @@ function UsersPage() {
 
     const handleChallenge = async (opponentId: string) => {
         if (!currentUserId) return alert("Please select your user identity first.");
-        if (!socket) return alert("Not connected to server. Please wait.");
+        const globalSocket = getGlobalSocket();
+        if (!globalSocket) return alert("Not connected to server. Please wait.");
 
         const currentUser = users.find(u => u.id === currentUserId);
         if (!currentUser) return alert("Could not find your user data.");
-        
-        socket.emit('challenge-user', { 
+
+        globalSocket.emit('challenge-user', {
             challengerId: currentUserId,
             challengerName: currentUser.displayName || currentUser.verusId,
-            challengeeId: opponentId 
+            challengeeId: opponentId
         });
         setChallengeSent(opponentId);
     };
@@ -172,10 +158,13 @@ function UsersPage() {
     
             if (res.ok) {
                 const newGame = await res.json();
-                socket.emit('challenge-accepted', {
-                    challengerId: incomingChallenge.challengerId,
-                    gameId: newGame.id
-                });
+                const globalSocket = getGlobalSocket();
+                if (globalSocket) {
+                    globalSocket.emit('challenge-accepted', {
+                        challengerId: incomingChallenge.challengerId,
+                        gameId: newGame.id
+                    });
+                }
                 router.push(`/game/${newGame.id}`);
             } else {
                 alert('Failed to create game.');

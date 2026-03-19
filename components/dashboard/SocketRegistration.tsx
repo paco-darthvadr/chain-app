@@ -4,33 +4,45 @@ import { useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 
 /**
- * Invisible component that registers the current user on the Socket.IO server.
- * Mounted in the dashboard layout so the user is always "online" for challenges
- * regardless of which page they're on.
+ * Single global socket connection for the dashboard.
+ * All pages use this socket via window events + getGlobalSocket().
+ * Prevents multiple competing socket connections.
  */
+let globalSocket: Socket | null = null;
+
+export function getGlobalSocket(): Socket | null {
+    return globalSocket;
+}
+
 export default function SocketRegistration() {
-    const socketRef = useRef<Socket | null>(null);
+    const initialized = useRef(false);
 
     useEffect(() => {
+        if (initialized.current) return;
+        initialized.current = true;
+
         const userId = localStorage.getItem('currentUser');
         if (!userId) return;
 
         const socketURL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3002';
         const socket = io(socketURL);
-        socketRef.current = socket;
+        globalSocket = socket;
 
         socket.on('connect', () => {
             socket.emit('register-user', userId);
             console.log('[SocketRegistration] Registered user', userId);
         });
 
-        // Handle incoming challenges from any page
+        // Relay all socket events as window CustomEvents so any page can listen
         socket.on('new-challenge', ({ challengerId, challengerName }) => {
-            // Store in sessionStorage so the users page can pick it up
-            sessionStorage.setItem('pendingChallenge', JSON.stringify({ challengerId, challengerName }));
-            // Dispatch a custom event so any listening component can react
-            window.dispatchEvent(new CustomEvent('incoming-challenge', {
+            window.dispatchEvent(new CustomEvent('socket:new-challenge', {
                 detail: { challengerId, challengerName }
+            }));
+        });
+
+        socket.on('challenge-failed', ({ message }) => {
+            window.dispatchEvent(new CustomEvent('socket:challenge-failed', {
+                detail: { message }
             }));
         });
 
@@ -38,9 +50,23 @@ export default function SocketRegistration() {
             window.location.href = `/game/${gameId}`;
         });
 
+        socket.on('challenge-denied', ({ declinerName }) => {
+            window.dispatchEvent(new CustomEvent('socket:challenge-denied', {
+                detail: { declinerName }
+            }));
+        });
+
+        socket.on('refresh-game-list', () => {
+            window.dispatchEvent(new CustomEvent('socket:refresh-game-list'));
+        });
+
+        socket.on('refresh-user-list', () => {
+            window.dispatchEvent(new CustomEvent('socket:refresh-user-list'));
+        });
+
         return () => {
             socket.disconnect();
-            socketRef.current = null;
+            globalSocket = null;
         };
     }, []);
 
