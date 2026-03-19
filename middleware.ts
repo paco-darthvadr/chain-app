@@ -7,6 +7,7 @@ if (!JWT_SECRET) throw new Error('JWT_SECRET must be set in the environment');
 // List of public routes (no auth required)
 const PUBLIC_PATHS = [
   '/api/login/verify',
+  '/api/login/cli',
   '/api/login-qr',
   '/api/login/logout',
   '/login',
