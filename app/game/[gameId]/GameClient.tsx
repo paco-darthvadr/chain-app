@@ -19,6 +19,7 @@ import GameMoves from '@/components/chessboard/GameMoves';
 import { useRouter } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import SubIdStatus from '@/components/chessboard/SubIdStatus';
+import ShowcaseSigningPrompt from '@/components/chessboard/ShowcaseSigningPrompt';
 
 interface Move {
     piece: string;
@@ -70,6 +71,9 @@ const GameClient = ({ game }: GameClientProps) => {
     const [incomingRematch, setIncomingRematch] = useState(false);
     const [socket, setSocket] = useState<Socket | null>(null);
     const [blockchainStatus, setBlockchainStatus] = useState<Record<string, 'storing' | 'processing' | 'stored' | 'failed' | null>>({});
+    const [showcaseSigningPhase, setShowcaseSigningPhase] = useState<'open' | 'close' | null>(null);
+    const [showcaseMessage, setShowcaseMessage] = useState<string>('');
+    const [showcaseReady, setShowcaseReady] = useState(false);
     const router = useRouter();
     
     // Ref to track if we've already updated the game status to prevent duplicate database updates
@@ -218,6 +222,30 @@ const GameClient = ({ game }: GameClientProps) => {
         }
     }, [socket, playerVerusId, gameState.id]);
 
+    useEffect(() => {
+      if (gameState.mode !== 'showcase' || !currentPlayer) return;
+
+      const checkShowcaseSigning = async () => {
+        try {
+          const res = await fetch(`/api/game/${gameState.id}/showcase-sign`);
+          const data = await res.json();
+          if (!data.message) return;
+
+          const playerSide = currentPlayer === 'white' ? 'whiteHasSigned' : 'blackHasSigned';
+          if (!data[playerSide]) {
+            setShowcaseMessage(data.message);
+            setShowcaseSigningPhase('open');
+          } else if (data.whiteHasSigned && data.blackHasSigned) {
+            setShowcaseReady(true);
+          }
+        } catch (e) {
+          console.error('[Showcase] Failed to check signing status:', e);
+        }
+      };
+
+      checkShowcaseSigning();
+    }, [gameState.mode, gameState.id, currentPlayer]);
+
     const formatPosition = (x: number, y: number) => {
         const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
         const ranks = ['8', '7', '6', '5', '4', '3', '2', '1'];
@@ -340,6 +368,7 @@ const GameClient = ({ game }: GameClientProps) => {
                     gameId: gameState.id,
                     boardState: updatedGame.boardState,
                     signedPackage: (updatedGame as any).signedPackage || null,
+                    chainTxid: (updatedGame as any).chainTxid || null,
                 });
             }
         } else {
@@ -440,6 +469,7 @@ const GameClient = ({ game }: GameClientProps) => {
     };
 
     const playMove = (piece: Piece, position: Position): boolean => {
+        if (gameState.mode === 'showcase' && !showcaseReady) return false;
         if (gameResult || !board || piece.team !== board.currentTeam) return false;
 
         const isWhiteTurn = board.currentTeam === TeamType.OUR;
@@ -546,6 +576,23 @@ const GameClient = ({ game }: GameClientProps) => {
     }
   
     return (
+        <>
+        {showcaseSigningPhase && gameState.mode === 'showcase' && (
+          <ShowcaseSigningPrompt
+            gameId={gameState.id}
+            player={currentPlayer as 'white' | 'black'}
+            playerVerusId={(() => {
+              const player = currentPlayer === 'white' ? gameState.whitePlayer : gameState.blackPlayer;
+              return player?.displayName ? `${player.displayName}@` : player?.verusId || '';
+            })()}
+            phase={showcaseSigningPhase}
+            messageToSign={showcaseMessage}
+            onSigned={() => {
+              setShowcaseSigningPhase(null);
+              setShowcaseReady(true);
+            }}
+          />
+        )}
         <div className="flex flex-col md:flex-row gap-4 p-4 max-w-7xl mx-auto">
             {gameState.status === 'COMPLETED' && (
                 <GameOver 
@@ -643,6 +690,7 @@ const GameClient = ({ game }: GameClientProps) => {
                 onStatusChange={setBlockchainStatus}
             />
         </div>
+        </>
     );
 };
 
