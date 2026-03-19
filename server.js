@@ -123,6 +123,12 @@ io.on('connection', (socket) => {
     if (data.signedPackage) {
         socket.to(data.gameId).emit('move-signed', data.signedPackage);
     }
+
+    // Emit chain txid if available (Showcase mode)
+    if (data.chainTxid) {
+        socket.to(data.gameId).emit('move-on-chain', { txid: data.chainTxid, moveNum: data.signedPackage?.moveNum });
+    }
+
     console.log(`Move made in game ${data.gameId}, broadcasting to room.`);
   });
 

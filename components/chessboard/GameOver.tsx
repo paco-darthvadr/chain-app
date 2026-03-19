@@ -9,15 +9,20 @@ interface GameOverProps {
   winnerName: string;
   onRematch: () => void;
   rematchOffered: boolean;
+  currentPlayer?: 'white' | 'black' | null;
 }
 
-const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematchOffered }) => {
+const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematchOffered, currentPlayer }) => {
   const [blockchainStatus, setBlockchainStatus] = useState<'idle' | 'verifying' | 'verified' | 'storing' | 'stored' | 'failed'>(
     game?.blockchainTxId && game.blockchainTxId !== 'PROCESSING' ? 'stored' : 'idle'
   );
   const [blockchainMessage, setBlockchainMessage] = useState('');
   const [gameSession, setGameSession] = useState<any>(null);
   const [storageMode, setStorageMode] = useState<'normal' | 'tournament'>('normal');
+  const [showcaseClosingSig, setShowcaseClosingSig] = useState('');
+  const [showcaseClosingSubmitting, setShowcaseClosingSubmitting] = useState(false);
+  const [showcaseClosingDone, setShowcaseClosingDone] = useState(false);
+  const [showcaseClosingError, setShowcaseClosingError] = useState<string | null>(null);
 
   // Trigger confetti
   useEffect(() => {
@@ -39,7 +44,7 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
 
   // Fetch game session data on mount, auto-verify if not yet verified
   useEffect(() => {
-    if (!game?.id || game?.mode !== 'normal') return;
+    if (!game?.id || (game?.mode !== 'normal' && game?.mode !== 'showcase')) return;
     (async () => {
       try {
         // First fetch current session state
@@ -51,6 +56,12 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
           // Already verified
           setGameSession(data.gameSession);
           setBlockchainStatus('verified');
+          return;
+        }
+
+        // For showcase mode, just load the session — no auto-verify
+        if (game?.mode === 'showcase') {
+          if (data.gameSession) setGameSession(data.gameSession);
           return;
         }
 
@@ -110,6 +121,33 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
       setBlockchainStatus('failed');
       setBlockchainMessage(error.message || 'Network error');
     }
+  };
+
+  const handleShowcaseClosingSign = async () => {
+    if (!showcaseClosingSig.trim() || !gameSession?.gameHash) return;
+    setShowcaseClosingSubmitting(true);
+    setShowcaseClosingError(null);
+    try {
+      const res = await fetch(`/api/game/${game.id}/showcase-sign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phase: 'close',
+          player: currentPlayer,
+          signature: showcaseClosingSig.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setShowcaseClosingDone(true);
+        handleVerifyAndStore();
+      } else {
+        setShowcaseClosingError(data.error || 'Signature verification failed');
+      }
+    } catch {
+      setShowcaseClosingError('Network error');
+    }
+    setShowcaseClosingSubmitting(false);
   };
 
   const moveCount = (() => {
@@ -210,6 +248,50 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
               <span className="text-muted-foreground text-xs">- includes all per-move signatures</span>
             </label>
           </div>
+        )}
+
+        {/* Showcase Closing Signature */}
+        {game.mode === 'showcase' && gameSession?.gameHash && !showcaseClosingDone && (
+          <div className="space-y-3 border-t border-border pt-4 mt-4">
+            <h4 className="font-medium text-sm">Sign to confirm result</h4>
+            <div className="relative">
+              <div className="bg-muted p-2 pr-10 rounded font-mono text-xs break-all">
+                verus -chain=VRSCTEST signmessage &quot;{(() => {
+                  const player = currentPlayer === 'white' ? game.whitePlayer : game.blackPlayer;
+                  return player?.displayName ? `${player.displayName}@` : player?.verusId || '';
+                })()}&quot; &quot;{gameSession.gameHash}&quot;
+              </div>
+              <button
+                onClick={() => {
+                  const player = currentPlayer === 'white' ? game.whitePlayer : game.blackPlayer;
+                  const verusId = player?.displayName ? `${player.displayName}@` : player?.verusId || '';
+                  navigator.clipboard.writeText(`verus -chain=VRSCTEST signmessage "${verusId}" "${gameSession.gameHash}"`);
+                }}
+                className="absolute top-1.5 right-1.5 p-1 rounded bg-muted-foreground/10 hover:bg-muted-foreground/20 transition-colors"
+                title="Copy command"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+              </button>
+            </div>
+            <textarea
+              value={showcaseClosingSig}
+              onChange={(e) => setShowcaseClosingSig(e.target.value)}
+              placeholder="Paste closing signature here"
+              rows={2}
+              className="w-full px-3 py-2 rounded-md border bg-background text-xs font-mono"
+            />
+            {showcaseClosingError && <p className="text-red-500 text-xs">{showcaseClosingError}</p>}
+            <button
+              onClick={handleShowcaseClosingSign}
+              disabled={showcaseClosingSubmitting || !showcaseClosingSig.trim()}
+              className="w-full px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
+            >
+              {showcaseClosingSubmitting ? 'Verifying...' : 'Submit Closing Signature'}
+            </button>
+          </div>
+        )}
+        {game.mode === 'showcase' && showcaseClosingDone && (
+          <p className="text-green-500 text-sm mt-2">Closing signature submitted. Storing final record on chain...</p>
         )}
 
         {/* Blockchain Storage */}
