@@ -79,20 +79,23 @@ export const showcaseHandler: ModeHandler = {
       blackOpenSig: session.blackOpeningSig || '',
     };
 
-    try {
-      // Ensure SubID exists on-chain before first update
-      if (!session.subIdAddress) {
-        console.log(`[Showcase] Creating SubID ${subIdName} before first chain update...`);
-        const subIdResult = await createGameSubId(subIdName);
-        await prisma.gameSession.update({
-          where: { gameId: game.id },
-          data: { subIdAddress: subIdResult.address },
-        });
+    // Fire chain update in the background — don't block the move/socket relay
+    (async () => {
+      try {
+        // Ensure SubID exists on-chain before first update
+        if (!session.subIdAddress) {
+          console.log(`[Showcase] Creating SubID ${subIdName} before first chain update...`);
+          const subIdResult = await createGameSubId(subIdName);
+          await prisma.gameSession.update({
+            where: { gameId: game.id },
+            data: { subIdAddress: subIdResult.address },
+          });
+        }
+        await updateGameOnChain(subIdName, liveState);
+      } catch (error: any) {
+        console.error(`[Showcase] Live chain update failed for move ${moveNum}:`, error.message);
       }
-      await updateGameOnChain(subIdName, liveState);
-    } catch (error: any) {
-      console.error(`[Showcase] Live chain update failed for move ${moveNum}:`, error.message);
-    }
+    })();
 
     return { ...movePackage, signature };
   },
