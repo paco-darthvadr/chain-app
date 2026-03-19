@@ -187,7 +187,7 @@ export async function storeGameData(subIdName: string, data: GameData): Promise<
     [K.result.vdxfid]:    [dd(data.result,                 K.result.uri)],
     [K.moves.vdxfid]:     [dd(JSON.stringify(data.moves),  K.moves.uri, 'application/json')],
     [K.movecount.vdxfid]: [dd(String(data.moveCount),      K.movecount.uri)],
-    [K.duration.vdxfid]:  [dd(String(data.duration),       K.duration.uri)],
+    [K.duration.vdxfid]:  [dd(String(data.duration),       K.duration.uri + ' (seconds)')],
     [K.startedat.vdxfid]: [dd(String(data.startedAt),      K.startedat.uri)],
     [K.gamehash.vdxfid]:  [dd(data.gameHash,               K.gamehash.uri)],
     [K.whitesig.vdxfid]:  [dd(data.whiteSig,               K.whitesig.uri)],

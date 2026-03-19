@@ -202,10 +202,29 @@ export const normalHandler: ModeHandler = {
         }
       }
 
+      // Resolve player identities to friendly VerusID names for on-chain storage
+      const whiteName = fullGame.whitePlayer.displayName
+        ? `${fullGame.whitePlayer.displayName}@`
+        : fullGame.whitePlayer.verusId;
+      const blackName = fullGame.blackPlayer.displayName
+        ? `${fullGame.blackPlayer.displayName}@`
+        : fullGame.blackPlayer.verusId;
+
+      let winnerDisplayName = '';
+      if (winnerVerusId) {
+        if (winnerVerusId === fullGame.whitePlayer.verusId) {
+          winnerDisplayName = whiteName;
+        } else if (winnerVerusId === fullGame.blackPlayer.verusId) {
+          winnerDisplayName = blackName;
+        } else {
+          winnerDisplayName = winnerVerusId; // 'DRAW' or already a name
+        }
+      }
+
       const gameData: GameData = {
-        white: fullGame.whitePlayer.verusId,
-        black: fullGame.blackPlayer.verusId,
-        winner: winnerVerusId,
+        white: whiteName,
+        black: blackName,
+        winner: winnerDisplayName,
         result: fullGame.status === 'COMPLETED' ? 'checkmate' : fullGame.status.toLowerCase(),
         moves,
         moveCount: moves.length,

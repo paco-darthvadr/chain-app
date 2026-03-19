@@ -173,8 +173,20 @@ const Login = () => {
                   <p className="text-sm text-muted-foreground">
                     Run this command in your terminal to sign the challenge:
                   </p>
-                  <div className="bg-muted p-3 rounded-md font-mono text-xs break-all select-all">
-                    verus -chain=VRSCTEST signmessage &quot;{verusIdDisplay}&quot; &quot;{cliChallenge.challenge}&quot;
+                  <div className="relative group">
+                    <div className="bg-muted p-3 pr-12 rounded-md font-mono text-xs break-all">
+                      verus -chain=VRSCTEST signmessage &quot;{verusIdDisplay}&quot; &quot;{cliChallenge.challenge}&quot;
+                    </div>
+                    <button
+                      onClick={() => {
+                        const cmd = `verus -chain=VRSCTEST signmessage "${verusIdDisplay}" "${cliChallenge.challenge}"`;
+                        navigator.clipboard.writeText(cmd);
+                      }}
+                      className="absolute top-2 right-2 p-1.5 rounded bg-muted-foreground/10 hover:bg-muted-foreground/20 transition-colors"
+                      title="Copy command"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                    </button>
                   </div>
                 </div>
 

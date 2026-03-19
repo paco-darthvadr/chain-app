@@ -4,6 +4,7 @@ import {
     Users,
     Settings,
     Crown,
+    Trophy,
 } from "lucide-react";
 
 export const SidebarItems = [
@@ -16,6 +17,11 @@ export const SidebarItems = [
         href: "/users",
         label: "Challenge Players",
         icon: Users,
+    },
+    {
+        href: "/games",
+        label: "On-Chain Games",
+        icon: Trophy,
     },
     {
         href: "/chat",
