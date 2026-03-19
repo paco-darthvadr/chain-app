@@ -343,6 +343,26 @@ const GameClient = ({ game }: GameClientProps) => {
         }
     }
 
+    const handleResign = async () => {
+        if (gameResult || !currentPlayer) return;
+        const confirmResign = window.confirm('Are you sure you want to resign?');
+        if (!confirmResign) return;
+
+        try {
+            // The resigning player loses — opponent wins
+            const winningTeam = currentPlayer === 'white' ? 'OPPONENT' : 'OUR';
+            const updatedGame = await endGame(gameState.id, winningTeam);
+            if (updatedGame) {
+                setGameState(updatedGame);
+                const opponentPlayer = currentPlayer === 'white' ? gameState.blackPlayer : gameState.whitePlayer;
+                setWinner(opponentPlayer);
+                setGameResult('resignation');
+            }
+        } catch (error) {
+            console.error('Error resigning:', error);
+        }
+    };
+
     const handleRematch = () => {
         console.log('Rematch button clicked');
         setRematchOffered(true);
@@ -566,6 +586,11 @@ const GameClient = ({ game }: GameClientProps) => {
                         </div> */}
                         
                         <Chessboard pieces={board.pieces} playMove={playMove} bottomColor={currentPlayer} />
+                        {!gameResult && currentPlayer && (
+                            <Button variant="destructive" size="sm" onClick={handleResign}>
+                                Resign
+                            </Button>
+                        )}
                     </div>
                 </div>
             </div>
