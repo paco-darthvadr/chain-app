@@ -23,6 +23,25 @@ export default function ShowcaseSigningPrompt({
 
   const signCommand = `verus -chain=VRSCTEST signmessage "${playerVerusId}" '${messageToSign}'`;
 
+  // Check if we already signed on mount (handles page refresh)
+  React.useEffect(() => {
+    if (phase !== 'open') return;
+    (async () => {
+      try {
+        const res = await fetch(`/api/game/${gameId}/showcase-sign`);
+        const data = await res.json();
+        const mySide = player === 'white' ? 'whiteHasSigned' : 'blackHasSigned';
+        if (data[mySide]) {
+          if (data.whiteHasSigned && data.blackHasSigned) {
+            onBothSigned?.();
+          } else {
+            setWaitingForOpponent(true);
+          }
+        }
+      } catch {}
+    })();
+  }, [phase, gameId, player]);
+
   const handleCopy = () => {
     navigator.clipboard.writeText(signCommand);
     setCopied(true);

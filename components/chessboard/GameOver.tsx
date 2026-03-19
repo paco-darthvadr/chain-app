@@ -120,6 +120,8 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
     return player?.displayName ? `${player.displayName}@` : player?.verusId || '';
   })();
 
+  const [showcaseWaitingForOpponent, setShowcaseWaitingForOpponent] = useState(false);
+
   const handleShowcaseClosingSign = async () => {
     if (!showcaseClosingSig.trim() || !gameSession?.gameHash) return;
     setShowcaseClosingSubmitting(true);
@@ -137,7 +139,15 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
       const data = await res.json();
       if (data.success) {
         setShowcaseClosingDone(true);
-        handleVerifyAndStore();
+        // Check if both players have signed before storing
+        const checkRes = await fetch(`/api/game/${game.id}`);
+        const checkData = await checkRes.json();
+        const session = checkData.gameSession;
+        if (session?.whiteFinalSig && session?.blackFinalSig) {
+          handleVerifyAndStore();
+        } else {
+          setShowcaseWaitingForOpponent(true);
+        }
       } else {
         setShowcaseClosingError(data.error || 'Signature verification failed');
       }
@@ -146,6 +156,24 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
     }
     setShowcaseClosingSubmitting(false);
   };
+
+  // Poll for opponent's closing signature
+  useEffect(() => {
+    if (!showcaseWaitingForOpponent || !isShowcase) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/game/${game.id}`);
+        const data = await res.json();
+        const session = data.gameSession;
+        if (session?.whiteFinalSig && session?.blackFinalSig) {
+          clearInterval(interval);
+          setShowcaseWaitingForOpponent(false);
+          handleVerifyAndStore();
+        }
+      } catch {}
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [showcaseWaitingForOpponent, isShowcase, game?.id]);
 
   const moveCount = (() => {
     try {
@@ -241,9 +269,15 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
             </button>
           </div>
         )}
-        {isShowcase && showcaseClosingDone && blockchainStatus === 'verifying' && (
+        {isShowcase && showcaseClosingDone && showcaseWaitingForOpponent && (
+          <div className="text-center space-y-2 py-2">
+            <div className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-primary border-r-transparent" />
+            <p className="text-sm text-muted-foreground">Your signature submitted. Waiting for opponent to sign...</p>
+          </div>
+        )}
+        {isShowcase && showcaseClosingDone && !showcaseWaitingForOpponent && blockchainStatus === 'verifying' && (
           <div className="text-yellow-600 text-sm py-2">
-            <div className="animate-pulse">{blockchainMessage || 'Storing final record on chain...'}</div>
+            <div className="animate-pulse">{blockchainMessage || 'Both signatures received. Storing final record on chain...'}</div>
           </div>
         )}
 

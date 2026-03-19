@@ -35,16 +35,17 @@ const io = new Server(httpServer, {
 });
 
 const rooms = {}; // { [roomId]: string[] }
-const userSockets = {}; // { [userId]: socketId }
+const userSockets = {}; // { [userId]: Set<socketId> } — supports multiple sockets per user
 
 io.on('connection', (socket) => {
   console.log(`A user connected: ${socket.id}`);
   console.log(`Total connections: ${Object.keys(io.sockets.sockets).length}`);
 
   socket.on('register-user', (userId) => {
-    userSockets[userId] = socket.id;
-    socket.userId = userId; // Store on the socket for easy lookup on disconnect
-    console.log(`User ${userId} registered with socket ${socket.id}`);
+    if (!userSockets[userId]) userSockets[userId] = new Set();
+    userSockets[userId].add(socket.id);
+    socket.userId = userId;
+    console.log(`User ${userId} registered with socket ${socket.id} (${userSockets[userId].size} connections)`);
     console.log('Current registered users:', Object.keys(userSockets));
   });
 
@@ -75,14 +76,16 @@ io.on('connection', (socket) => {
     console.log(`Challenge attempt: ${challengerName} (${challengerId}) challenging ${challengeeId}`);
     console.log('Available users:', Object.keys(userSockets));
 
-    const challengeeSocketId = userSockets[challengeeId];
-    if (challengeeSocketId) {
-        console.log(`Sending challenge to ${challengeeId} at socket ${challengeeSocketId}`);
-        io.to(challengeeSocketId).emit('new-challenge', {
-            challengerId: challengerId,
-            challengerName: challengerName,
-            mode: mode
-        });
+    const challengeeSockets = userSockets[challengeeId];
+    if (challengeeSockets && challengeeSockets.size > 0) {
+        console.log(`Sending challenge to ${challengeeId} on ${challengeeSockets.size} socket(s)`);
+        for (const sid of challengeeSockets) {
+            io.to(sid).emit('new-challenge', {
+                challengerId: challengerId,
+                challengerName: challengerName,
+                mode: mode
+            });
+        }
     } else {
         console.log(`User ${challengeeId} not found in userSockets`);
         socket.emit('challenge-failed', { message: 'User is not online or available for challenges.' });
@@ -90,16 +93,19 @@ io.on('connection', (socket) => {
   });
 
   socket.on('challenge-accepted', ({ challengerId, gameId }) => {
-      const challengerSocketId = userSockets[challengerId];
-      if (challengerSocketId) {
-          io.to(challengerSocketId).emit('game-started', { gameId });
+      const challengerSockets = userSockets[challengerId];
+      if (challengerSockets) {
+          for (const sid of challengerSockets) {
+              io.to(sid).emit('game-started', { gameId });
+          }
       }
   });
 
   socket.on('challenge-declined', ({ challengerId, declinerName }) => {
-      const challengerSocketId = userSockets[challengerId];
-      if (challengerSocketId) {
-          io.to(challengerSocketId).emit('challenge-denied', { declinerName });
+      const challengerSockets = userSockets[challengerId];
+      if (challengerSockets) {
+          for (const sid of challengerSockets) {
+              io.to(sid).emit('challenge-denied', { declinerName });
       }
   });
 
@@ -154,11 +160,12 @@ io.on('connection', (socket) => {
 
   socket.on('rematch-offer', ({ gameId, opponentId }) => {
     let sentDirect = false;
-    if (opponentId && userSockets[opponentId]) {
-      const opponentSocketId = userSockets[opponentId];
-      io.to(opponentSocketId).emit('rematch-offered', { gameId });
+    if (opponentId && userSockets[opponentId] && userSockets[opponentId].size > 0) {
+      for (const sid of userSockets[opponentId]) {
+        io.to(sid).emit('rematch-offered', { gameId });
+      }
       sentDirect = true;
-      console.log(`Rematch offer sent directly to opponent ${opponentId} at socket ${opponentSocketId}`);
+      console.log(`Rematch offer sent to opponent ${opponentId} on ${userSockets[opponentId].size} socket(s)`);
     }
     // Always emit to the room as a backup (excluding sender)
     socket.to(gameId).emit('rematch-offered', { gameId });
@@ -228,9 +235,12 @@ io.on('connection', (socket) => {
       io.to(roomId).emit('updateUserList', { users: rooms[roomId] });
     }
     // Add disconnect logic for user registration
-    if (socket.userId && userSockets[socket.userId] === socket.id) {
-        delete userSockets[socket.userId];
-        console.log(`User ${socket.userId} unregistered.`);
+    if (socket.userId && userSockets[socket.userId]) {
+        userSockets[socket.userId].delete(socket.id);
+        if (userSockets[socket.userId].size === 0) {
+            delete userSockets[socket.userId];
+        }
+        console.log(`Socket ${socket.id} removed for user ${socket.userId}`);
     }
     console.log(`A user disconnected: ${socket.id}`);
   });

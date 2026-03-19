@@ -3,7 +3,7 @@
 import Chessboard from '../../../components/chessboard/Chessboard';
 import MoveHistory from '../../../components/chessboard/MoveHistory';
 import PromotionDialog from '../../../components/chessboard/PromotionDialog';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { Piece } from '../../models/Piece';
 import { Position } from '../../models/Position';
@@ -232,11 +232,19 @@ const GameClient = ({ game }: GameClientProps) => {
           if (!data.message) return;
 
           const playerSide = currentPlayer === 'white' ? 'whiteHasSigned' : 'blackHasSigned';
+          const otherSide = currentPlayer === 'white' ? 'blackHasSigned' : 'whiteHasSigned';
           if (!data[playerSide]) {
+            // Current player hasn't signed yet — show signing prompt
             setShowcaseMessage(data.message);
             setShowcaseSigningPhase('open');
           } else if (data.whiteHasSigned && data.blackHasSigned) {
+            // Both signed — unlock board
             setShowcaseReady(true);
+          } else if (data[playerSide] && !data[otherSide]) {
+            // Current player signed, waiting for opponent — show prompt in waiting state
+            setShowcaseMessage(data.message);
+            setShowcaseSigningPhase('open');
+            // The ShowcaseSigningPrompt will detect bothSigned=false and show waiting UI
           }
         } catch (e) {
           console.error('[Showcase] Failed to check signing status:', e);
@@ -587,13 +595,13 @@ const GameClient = ({ game }: GameClientProps) => {
             })()}
             phase={showcaseSigningPhase}
             messageToSign={showcaseMessage}
-            onSigned={() => {
+            onSigned={useCallback(() => {
               // Individual player signed — don't unlock yet
-            }}
-            onBothSigned={() => {
+            }, [])}
+            onBothSigned={useCallback(() => {
               setShowcaseSigningPhase(null);
               setShowcaseReady(true);
-            }}
+            }, [])}
           />
         )}
         <div className="flex flex-col md:flex-row gap-4 p-4 max-w-7xl mx-auto">

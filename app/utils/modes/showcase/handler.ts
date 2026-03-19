@@ -2,6 +2,7 @@ import { ModeHandler, MoveData, SignedMovePackage, GameEndResult, StorageResult 
 import { hashMovePackage, computeAnchorHash, verifyChain, computeGameHash, MovePackageData } from '../normal/hash-chain';
 import { getMoveSigner } from '../normal/move-signer';
 import { updateGameOnChain, LiveGameState } from './live-storage';
+import { createGameSubId } from '../normal/subid-storage';
 import { prisma } from '@/lib/prisma';
 
 export const showcaseHandler: ModeHandler = {
@@ -79,6 +80,15 @@ export const showcaseHandler: ModeHandler = {
     };
 
     try {
+      // Ensure SubID exists on-chain before first update
+      if (!session.subIdAddress) {
+        console.log(`[Showcase] Creating SubID ${subIdName} before first chain update...`);
+        const subIdResult = await createGameSubId(subIdName);
+        await prisma.gameSession.update({
+          where: { gameId: game.id },
+          data: { subIdAddress: subIdResult.address },
+        });
+      }
       await updateGameOnChain(subIdName, liveState);
     } catch (error: any) {
       console.error(`[Showcase] Live chain update failed for move ${moveNum}:`, error.message);
@@ -183,6 +193,11 @@ export const showcaseHandler: ModeHandler = {
       await prisma.gameSession.update({
         where: { gameId: game.id },
         data: { storedAt: new Date(), txId: txid },
+      });
+      // Also update Game.blockchainTxId so GameOver shows 'stored' on reload
+      await prisma.game.update({
+        where: { id: game.id },
+        data: { blockchainTxId: txid, blockchainStoredAt: new Date() },
       });
       return { success: true, transactionId: txid, subIdName, subIdAddress: session.subIdAddress || '' };
     } catch (error: any) {
