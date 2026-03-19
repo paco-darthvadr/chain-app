@@ -5,13 +5,20 @@ import { io, Socket } from 'socket.io-client';
 
 /**
  * Single global socket connection for the dashboard.
+ * Stored on window to survive Next.js module boundary splits.
  * All pages use this socket via window events + getGlobalSocket().
- * Prevents multiple competing socket connections.
  */
-let globalSocket: Socket | null = null;
-
 export function getGlobalSocket(): Socket | null {
-    return globalSocket;
+    if (typeof window !== 'undefined') {
+        return (window as any).__chessSocket || null;
+    }
+    return null;
+}
+
+function setGlobalSocket(socket: Socket | null) {
+    if (typeof window !== 'undefined') {
+        (window as any).__chessSocket = socket;
+    }
 }
 
 export default function SocketRegistration() {
@@ -26,7 +33,7 @@ export default function SocketRegistration() {
 
         const socketURL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3002';
         const socket = io(socketURL);
-        globalSocket = socket;
+        setGlobalSocket(socket);
 
         socket.on('connect', () => {
             socket.emit('register-user', userId);
@@ -66,7 +73,7 @@ export default function SocketRegistration() {
 
         return () => {
             socket.disconnect();
-            globalSocket = null;
+            setGlobalSocket(null);
         };
     }, []);
 
