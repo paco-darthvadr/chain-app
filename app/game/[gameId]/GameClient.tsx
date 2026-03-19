@@ -142,6 +142,20 @@ const GameClient = ({ game }: GameClientProps) => {
             }
         });
 
+        newSocket.on('opponent-resigned', async () => {
+            if (!hasUpdatedGameStatus.current) {
+                // Opponent resigned — refetch the game to get updated state
+                const updatedGame = await getGame(gameState.id);
+                if (updatedGame && updatedGame.status === 'COMPLETED') {
+                    hasUpdatedGameStatus.current = true;
+                    setGameState(updatedGame);
+                    const winnerPlayer = currentPlayer === 'white' ? gameState.whitePlayer : gameState.blackPlayer;
+                    setWinner(winnerPlayer);
+                    setGameResult('resignation');
+                }
+            }
+        });
+
         newSocket.on('rematch-offered', (payload) => {
             console.log('Received rematch-offered:', payload);
             setIncomingRematch(true);
@@ -358,9 +372,9 @@ const GameClient = ({ game }: GameClientProps) => {
                 setWinner(opponentPlayer);
                 setGameResult('resignation');
 
-                // Notify opponent via socket
+                // Notify opponent via socket that we resigned
                 if (socket) {
-                    socket.emit('leave-game', { gameId: gameState.id });
+                    socket.emit('player-resigned', { gameId: gameState.id, resignerId: playerVerusId });
                 }
             }
         } catch (error) {

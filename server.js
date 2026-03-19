@@ -139,6 +139,12 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('player-resigned', ({ gameId, resignerId }) => {
+    console.log(`Player ${resignerId} resigned from game ${gameId}`);
+    // Notify the opponent in the game room
+    socket.to(gameId).emit('opponent-resigned');
+  });
+
   socket.on('rematch-offer', ({ gameId, opponentId }) => {
     let sentDirect = false;
     if (opponentId && userSockets[opponentId]) {

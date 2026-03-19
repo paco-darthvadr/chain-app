@@ -85,17 +85,24 @@ export async function createGameSubId(subIdName: string): Promise<{ address: str
   }
 
   // Step 3: registeridentity
+  // Get the parent identity to find its primary R-address for the SubID
+  const parentIdentity = await rpcCall('getidentity', [parentAddress]);
+  const parentPrimaryAddress = parentIdentity.identity.primaryaddresses[0];
+
   const identity = await rpcCall('registeridentity', [{
     txid: commitment.txid,
     namereservation: commitment.namereservation,
     identity: {
       name: subIdName,
       parent: parentAddress,
-      primaryaddresses: [parentAddress],
+      primaryaddresses: [parentPrimaryAddress],
       minimumsignatures: 1,
     },
   }]);
   console.log(`[SubID] Registered ${fullName}:`, identity);
+
+  // Wait for registration to be mined before looking up
+  await waitForConfirmation(identity, 120000);
 
   // Get the identity address
   const registered = await rpcCall('getidentity', [fullName]);
