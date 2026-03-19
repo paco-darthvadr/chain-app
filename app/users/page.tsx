@@ -9,30 +9,7 @@ import { io, Socket } from 'socket.io-client';
 import { getUsers, getGamesForUser, deleteUser } from './actions';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 
-import { getGlobalSocket } from '@/components/dashboard/SocketRegistration';
-
-/** Get the global socket, or create a fallback if it's not ready yet */
-function getSocket(): Socket | null {
-    const global = getGlobalSocket();
-    if (global?.connected) return global;
-    // Fallback: check if we stashed one on window
-    if (typeof window !== 'undefined' && (window as any).__usersPageSocket?.connected) {
-        return (window as any).__usersPageSocket;
-    }
-    return null;
-}
-
-function ensureSocket(): Socket {
-    const existing = getSocket();
-    if (existing) return existing;
-    // Create a fallback socket if global isn't ready
-    const socketURL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3002';
-    const fallback = io(socketURL);
-    const userId = typeof window !== 'undefined' ? localStorage.getItem('currentUser') : null;
-    if (userId) fallback.emit('register-user', userId);
-    if (typeof window !== 'undefined') (window as any).__usersPageSocket = fallback;
-    return fallback;
-}
+let socket: Socket | null = null;
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import BlockchainInfoDialog from '@/components/chessboard/BlockchainInfoDialog';
 
@@ -101,48 +78,54 @@ function UsersPage() {
     }, []);
     
     useEffect(() => {
-        // Use the global socket from SocketRegistration — no duplicate connections
-        fetchUsersAndGames(localStorage.getItem('currentUser'));
+        const socketURL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3002';
+        socket = io(socketURL);
 
-        // Listen for challenge events via window CustomEvents from SocketRegistration
-        const onChallenge = (e: Event) => {
-            const { challengerId, challengerName, mode } = (e as CustomEvent).detail;
+        socket.on('connect', () => {
+            const userId = localStorage.getItem('currentUser');
+            if (userId) {
+                socket!.emit('register-user', userId);
+                console.log('[UsersPage] Registered user', userId);
+            }
+            fetchUsersAndGames(localStorage.getItem('currentUser'));
+        });
+
+        socket.on('new-challenge', ({ challengerId, challengerName, mode }) => {
             const currentUser = localStorage.getItem('currentUser');
             if (challengerId !== currentUser) {
                 setIncomingChallenge({ challengerId, challengerName, mode });
             }
-        };
-        const onChallengeFailed = (e: Event) => {
-            const { message } = (e as CustomEvent).detail;
+        });
+
+        socket.on('challenge-failed', ({ message }) => {
             alert(message);
             setChallengeSent(null);
-        };
-        const onChallengeDenied = (e: Event) => {
-            const { declinerName } = (e as CustomEvent).detail;
+        });
+
+        socket.on('game-started', ({ gameId }) => {
+            router.push(`/game/${gameId}`);
+        });
+
+        socket.on('challenge-denied', ({ declinerName }) => {
             alert(`${declinerName} declined your challenge.`);
             setChallengeSent(null);
-        };
-        const onRefreshGames = () => {
+        });
+
+        socket.on('refresh-game-list', () => {
             const saved = localStorage.getItem('currentUser');
             if (saved) fetchUsersAndGames(saved);
-        };
-        const onRefreshUsers = () => {
+        });
+
+        socket.on('refresh-user-list', () => {
             const saved = localStorage.getItem('currentUser');
             fetchUsersAndGames(saved);
-        };
-
-        window.addEventListener('socket:new-challenge', onChallenge);
-        window.addEventListener('socket:challenge-failed', onChallengeFailed);
-        window.addEventListener('socket:challenge-denied', onChallengeDenied);
-        window.addEventListener('socket:refresh-game-list', onRefreshGames);
-        window.addEventListener('socket:refresh-user-list', onRefreshUsers);
+        });
 
         return () => {
-            window.removeEventListener('socket:new-challenge', onChallenge);
-            window.removeEventListener('socket:challenge-failed', onChallengeFailed);
-            window.removeEventListener('socket:challenge-denied', onChallengeDenied);
-            window.removeEventListener('socket:refresh-game-list', onRefreshGames);
-            window.removeEventListener('socket:refresh-user-list', onRefreshUsers);
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+            }
         };
     }, [fetchUsersAndGames]);
 
@@ -155,12 +138,12 @@ function UsersPage() {
 
     const handleChallenge = async (opponentId: string) => {
         if (!currentUserId) return alert("Please select your user identity first.");
-        const sock = ensureSocket();
+        if (!socket) return alert("Not connected to server. Please wait.");
 
         const currentUser = users.find(u => u.id === currentUserId);
         if (!currentUser) return alert("Could not find your user data.");
 
-        sock.emit('challenge-user', {
+        socket.emit('challenge-user', {
             challengerId: currentUserId,
             challengerName: currentUser.displayName || currentUser.verusId,
             challengeeId: opponentId,
@@ -186,10 +169,12 @@ function UsersPage() {
 
             if (res.ok) {
                 const newGame = await res.json();
-                ensureSocket().emit('challenge-accepted', {
-                    challengerId: incomingChallenge.challengerId,
-                    gameId: newGame.id
-                });
+                if (socket) {
+                    socket.emit('challenge-accepted', {
+                        challengerId: incomingChallenge.challengerId,
+                        gameId: newGame.id
+                    });
+                }
                 router.push(`/game/${newGame.id}`);
             } else {
                 alert('Failed to create game.');
@@ -207,7 +192,7 @@ function UsersPage() {
         if (!incomingChallenge || !currentUserId) return;
         const currentUser = users.find(u => u.id === currentUserId);
 
-        ensureSocket().emit('challenge-declined', {
+        socket?.emit('challenge-declined', {
             challengerId: incomingChallenge.challengerId,
             declinerName: currentUser?.displayName || currentUser?.verusId || 'Someone'
         });
