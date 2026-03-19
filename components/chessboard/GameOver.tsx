@@ -24,6 +24,10 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
   const [showcaseClosingDone, setShowcaseClosingDone] = useState(false);
   const [showcaseClosingError, setShowcaseClosingError] = useState<string | null>(null);
 
+  const isShowcase = game?.mode === 'showcase';
+  const isNormal = game?.mode === 'normal';
+  const hasChainSupport = isShowcase || isNormal;
+
   // Trigger confetti
   useEffect(() => {
     if (game?.status === 'COMPLETED' && winnerName) {
@@ -44,29 +48,20 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
 
   // Fetch game session data on mount, auto-verify if not yet verified
   useEffect(() => {
-    if (!game?.id || (game?.mode !== 'normal' && game?.mode !== 'showcase')) return;
+    if (!game?.id || !hasChainSupport) return;
     (async () => {
       try {
-        // First fetch current session state
         const res = await fetch(`/api/game/${game.id}`);
         if (!res.ok) return;
         const data = await res.json();
 
         if (data.gameSession?.verifiedAt) {
-          // Already verified
           setGameSession(data.gameSession);
           setBlockchainStatus('verified');
           return;
         }
 
-        // Showcase mode: auto-verify the hash chain so gameHash is available
-        // for the closing signature prompt (fix #5)
-
-        // Not verified yet — trigger verification via a verify-only endpoint
-        // We call store-blockchain which runs onGameEnd (verify) then storeOnChain
-        // But we just want verification. Let's call a lightweight verify endpoint.
-        // For now, we trigger onGameEnd by fetching the session after a short delay
-        // to allow the server action endGame to propagate.
+        // Auto-verify the hash chain (works for both normal and showcase)
         setBlockchainStatus('verifying');
         setBlockchainMessage('Verifying move chain...');
 
@@ -77,10 +72,10 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
             setGameSession(verifyData.gameSession);
             setBlockchainStatus('verified');
           } else {
+            if (data.gameSession) setGameSession(data.gameSession);
             setBlockchainStatus('idle');
           }
         } else {
-          // Fallback: just show what we have
           if (data.gameSession) setGameSession(data.gameSession);
           setBlockchainStatus('idle');
         }
@@ -88,13 +83,13 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
         setBlockchainStatus('idle');
       }
     })();
-  }, [game?.id, game?.mode]);
+  }, [game?.id, game?.mode, hasChainSupport]);
 
   const handleVerifyAndStore = async () => {
     if (!game?.id) return;
 
     setBlockchainStatus('verifying');
-    setBlockchainMessage('Verifying move chain and signatures...');
+    setBlockchainMessage('Verifying move chain and storing on blockchain...');
 
     try {
       const res = await fetch(`/api/game/${game.id}/store-blockchain`, {
@@ -119,6 +114,11 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
       setBlockchainMessage(error.message || 'Network error');
     }
   };
+
+  const playerVerusId = (() => {
+    const player = currentPlayer === 'white' ? game?.whitePlayer : game?.blackPlayer;
+    return player?.displayName ? `${player.displayName}@` : player?.verusId || '';
+  })();
 
   const handleShowcaseClosingSign = async () => {
     if (!showcaseClosingSig.trim() || !gameSession?.gameHash) return;
@@ -188,26 +188,14 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
           )}
         </div>
 
-        {/* Hash Chain Info (Normal mode) */}
-        {game?.mode === 'normal' && gameSession && (
+        {/* Hash Chain Info (Normal + Showcase) */}
+        {hasChainSupport && gameSession && (
           <div className="text-left text-xs space-y-1 bg-muted p-3 rounded-md font-mono">
             <p className="text-muted-foreground text-sm font-sans font-medium mb-2">Hash Chain</p>
             {gameSession.gameHash && (
               <div>
                 <span className="text-muted-foreground">Game Hash: </span>
                 <span className="break-all">{gameSession.gameHash}</span>
-              </div>
-            )}
-            {gameSession.whiteFinalSig && (
-              <div>
-                <span className="text-muted-foreground">White Sig: </span>
-                <span className="break-all">{gameSession.whiteFinalSig.substring(0, 24)}...</span>
-              </div>
-            )}
-            {gameSession.blackFinalSig && (
-              <div>
-                <span className="text-muted-foreground">Black Sig: </span>
-                <span className="break-all">{gameSession.blackFinalSig.substring(0, 24)}...</span>
               </div>
             )}
             {gameSession.verifiedAt && (
@@ -218,8 +206,49 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
           </div>
         )}
 
-        {/* Storage Mode Toggle */}
-        {game?.mode === 'normal' && (blockchainStatus === 'idle' || blockchainStatus === 'verified' || blockchainStatus === 'failed') && (
+        {/* Showcase: Closing Signature */}
+        {isShowcase && gameSession?.gameHash && !showcaseClosingDone && blockchainStatus !== 'stored' && (
+          <div className="space-y-3 border-t border-border pt-4 mt-4 text-left">
+            <h4 className="font-medium text-sm">Sign to confirm result</h4>
+            <div className="relative">
+              <div className="bg-muted p-2 pr-10 rounded font-mono text-xs break-all">
+                verus -chain=VRSCTEST signmessage &quot;{playerVerusId}&quot; &quot;{gameSession.gameHash}&quot;
+              </div>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(`verus -chain=VRSCTEST signmessage "${playerVerusId}" "${gameSession.gameHash}"`);
+                }}
+                className="absolute top-1.5 right-1.5 p-1 rounded bg-muted-foreground/10 hover:bg-muted-foreground/20 transition-colors"
+                title="Copy command"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+              </button>
+            </div>
+            <textarea
+              value={showcaseClosingSig}
+              onChange={(e) => setShowcaseClosingSig(e.target.value)}
+              placeholder="Paste closing signature here"
+              rows={2}
+              className="w-full px-3 py-2 rounded-md border bg-background text-xs font-mono"
+            />
+            {showcaseClosingError && <p className="text-red-500 text-xs">{showcaseClosingError}</p>}
+            <button
+              onClick={handleShowcaseClosingSign}
+              disabled={showcaseClosingSubmitting || !showcaseClosingSig.trim()}
+              className="w-full px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
+            >
+              {showcaseClosingSubmitting ? 'Verifying...' : 'Submit Closing Signature & Store on Chain'}
+            </button>
+          </div>
+        )}
+        {isShowcase && showcaseClosingDone && blockchainStatus === 'verifying' && (
+          <div className="text-yellow-600 text-sm py-2">
+            <div className="animate-pulse">{blockchainMessage || 'Storing final record on chain...'}</div>
+          </div>
+        )}
+
+        {/* Normal: Storage Mode Toggle */}
+        {isNormal && (blockchainStatus === 'idle' || blockchainStatus === 'verified' || blockchainStatus === 'failed') && (
           <div className="text-left text-sm bg-muted p-3 rounded-md space-y-2">
             <p className="font-medium">Storage mode:</p>
             <label className="flex items-center gap-2 cursor-pointer">
@@ -247,54 +276,10 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
           </div>
         )}
 
-        {/* Showcase Closing Signature */}
-        {game.mode === 'showcase' && gameSession?.gameHash && !showcaseClosingDone && (
-          <div className="space-y-3 border-t border-border pt-4 mt-4">
-            <h4 className="font-medium text-sm">Sign to confirm result</h4>
-            <div className="relative">
-              <div className="bg-muted p-2 pr-10 rounded font-mono text-xs break-all">
-                verus -chain=VRSCTEST signmessage &quot;{(() => {
-                  const player = currentPlayer === 'white' ? game.whitePlayer : game.blackPlayer;
-                  return player?.displayName ? `${player.displayName}@` : player?.verusId || '';
-                })()}&quot; &quot;{gameSession.gameHash}&quot;
-              </div>
-              <button
-                onClick={() => {
-                  const player = currentPlayer === 'white' ? game.whitePlayer : game.blackPlayer;
-                  const verusId = player?.displayName ? `${player.displayName}@` : player?.verusId || '';
-                  navigator.clipboard.writeText(`verus -chain=VRSCTEST signmessage "${verusId}" "${gameSession.gameHash}"`);
-                }}
-                className="absolute top-1.5 right-1.5 p-1 rounded bg-muted-foreground/10 hover:bg-muted-foreground/20 transition-colors"
-                title="Copy command"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-              </button>
-            </div>
-            <textarea
-              value={showcaseClosingSig}
-              onChange={(e) => setShowcaseClosingSig(e.target.value)}
-              placeholder="Paste closing signature here"
-              rows={2}
-              className="w-full px-3 py-2 rounded-md border bg-background text-xs font-mono"
-            />
-            {showcaseClosingError && <p className="text-red-500 text-xs">{showcaseClosingError}</p>}
-            <button
-              onClick={handleShowcaseClosingSign}
-              disabled={showcaseClosingSubmitting || !showcaseClosingSig.trim()}
-              className="w-full px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
-            >
-              {showcaseClosingSubmitting ? 'Verifying...' : 'Submit Closing Signature'}
-            </button>
-          </div>
-        )}
-        {game.mode === 'showcase' && showcaseClosingDone && (
-          <p className="text-green-500 text-sm mt-2">Closing signature submitted. Storing final record on chain...</p>
-        )}
-
-        {/* Blockchain Storage */}
-        {game?.mode === 'normal' && (
+        {/* Blockchain Storage Status (Normal + Showcase) */}
+        {hasChainSupport && (
           <div className="space-y-2">
-            {blockchainStatus === 'idle' && (
+            {isNormal && blockchainStatus === 'idle' && (
               <button
                 onClick={handleVerifyAndStore}
                 className="w-full bg-green-600 text-white py-2 px-4 rounded hover:bg-green-700 transition-colors"
@@ -302,7 +287,7 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
                 Verify & Store on Blockchain
               </button>
             )}
-            {blockchainStatus === 'verified' && (
+            {isNormal && blockchainStatus === 'verified' && (
               <button
                 onClick={handleVerifyAndStore}
                 className="w-full bg-green-600 text-white py-2 px-4 rounded hover:bg-green-700 transition-colors"
@@ -310,18 +295,8 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
                 Store on Blockchain
               </button>
             )}
-            {blockchainStatus === 'verifying' && (
-              <div className="text-yellow-600 text-sm py-2">
-                <div className="animate-pulse">{blockchainMessage}</div>
-              </div>
-            )}
-            {blockchainStatus === 'storing' && (
-              <div className="text-yellow-600 text-sm py-2">
-                <div className="animate-pulse">{blockchainMessage}</div>
-              </div>
-            )}
             {blockchainStatus === 'stored' && (
-              <div className="text-green-600 text-sm py-2 bg-green-50 rounded p-2">
+              <div className="text-green-600 text-sm py-2 bg-green-500/10 rounded p-2">
                 {blockchainMessage}
               </div>
             )}
