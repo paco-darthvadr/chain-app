@@ -20,8 +20,12 @@ const Login = () => {
   const [cliChallenge, setCliChallenge] = useState<{ challengeId: string; challenge: string } | null>(null);
   const [cliLoading, setCliLoading] = useState(false);
   const [cliError, setCliError] = useState<string | null>(null);
-  const [verusId, setVerusId] = useState('');
+  const [verusIdInput, setVerusIdInput] = useState('');
   const [signature, setSignature] = useState('');
+
+  // Normalize: ensure exactly one trailing @
+  const verusId = verusIdInput.trim() ? verusIdInput.trim().replace(/@+$/, '') + '@' : '';
+  const verusIdDisplay = verusIdInput.trim() ? verusIdInput.trim().replace(/@+$/, '') + '@' : 'YOUR_ID@';
   const [cliSubmitting, setCliSubmitting] = useState(false);
 
   // Fetch CLI challenge on mount
@@ -49,7 +53,7 @@ const Login = () => {
   };
 
   const handleCliLogin = async () => {
-    if (!cliChallenge || !verusId.trim() || !signature.trim()) return;
+    if (!cliChallenge || !verusId || !signature.trim()) return;
     setCliSubmitting(true);
     setCliError(null);
     try {
@@ -58,7 +62,7 @@ const Login = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           challengeId: cliChallenge.challengeId,
-          verusId: verusId.trim(),
+          verusId: verusId,
           signature: signature.trim(),
         }),
       });
@@ -170,7 +174,7 @@ const Login = () => {
                     Run this command in your terminal to sign the challenge:
                   </p>
                   <div className="bg-muted p-3 rounded-md font-mono text-xs break-all select-all">
-                    verus -chain=VRSCTEST signmessage &quot;YOUR_ID@&quot; &quot;{cliChallenge.challenge}&quot;
+                    verus -chain=VRSCTEST signmessage &quot;{verusIdDisplay}&quot; &quot;{cliChallenge.challenge}&quot;
                   </div>
                 </div>
 
@@ -178,9 +182,9 @@ const Login = () => {
                   <label className="text-sm font-medium">Your VerusID</label>
                   <input
                     type="text"
-                    placeholder="e.g. alice@ or iABC123..."
-                    value={verusId}
-                    onChange={(e) => setVerusId(e.target.value)}
+                    placeholder="e.g. alice or alice@"
+                    value={verusIdInput}
+                    onChange={(e) => setVerusIdInput(e.target.value)}
                     className="w-full px-3 py-2 rounded-md border bg-background text-sm"
                   />
                 </div>
@@ -198,7 +202,7 @@ const Login = () => {
 
                 <button
                   onClick={handleCliLogin}
-                  disabled={cliSubmitting || !verusId.trim() || !signature.trim()}
+                  disabled={cliSubmitting || !verusId || !signature.trim()}
                   className="w-full px-4 py-2 rounded-md bg-primary text-primary-foreground font-medium disabled:opacity-50"
                 >
                   {cliSubmitting ? 'Verifying...' : 'Login'}
