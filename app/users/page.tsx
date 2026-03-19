@@ -5,11 +5,34 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import Link from 'next/link';
 import { useState, useEffect, useCallback, useRef, use } from 'react';
 import { useRouter } from 'next/navigation';
-import type { Socket } from 'socket.io-client';
+import { io, Socket } from 'socket.io-client';
 import { getUsers, getGamesForUser, deleteUser } from './actions';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 
 import { getGlobalSocket } from '@/components/dashboard/SocketRegistration';
+
+/** Get the global socket, or create a fallback if it's not ready yet */
+function getSocket(): Socket | null {
+    const global = getGlobalSocket();
+    if (global?.connected) return global;
+    // Fallback: check if we stashed one on window
+    if (typeof window !== 'undefined' && (window as any).__usersPageSocket?.connected) {
+        return (window as any).__usersPageSocket;
+    }
+    return null;
+}
+
+function ensureSocket(): Socket {
+    const existing = getSocket();
+    if (existing) return existing;
+    // Create a fallback socket if global isn't ready
+    const socketURL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3002';
+    const fallback = io(socketURL);
+    const userId = typeof window !== 'undefined' ? localStorage.getItem('currentUser') : null;
+    if (userId) fallback.emit('register-user', userId);
+    if (typeof window !== 'undefined') (window as any).__usersPageSocket = fallback;
+    return fallback;
+}
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import BlockchainInfoDialog from '@/components/chessboard/BlockchainInfoDialog';
 
@@ -132,13 +155,12 @@ function UsersPage() {
 
     const handleChallenge = async (opponentId: string) => {
         if (!currentUserId) return alert("Please select your user identity first.");
-        const globalSocket = getGlobalSocket();
-        if (!globalSocket) return alert("Not connected to server. Please wait.");
+        const sock = ensureSocket();
 
         const currentUser = users.find(u => u.id === currentUserId);
         if (!currentUser) return alert("Could not find your user data.");
 
-        globalSocket.emit('challenge-user', {
+        sock.emit('challenge-user', {
             challengerId: currentUserId,
             challengerName: currentUser.displayName || currentUser.verusId,
             challengeeId: opponentId,
@@ -164,13 +186,10 @@ function UsersPage() {
 
             if (res.ok) {
                 const newGame = await res.json();
-                const globalSocket = getGlobalSocket();
-                if (globalSocket) {
-                    globalSocket.emit('challenge-accepted', {
-                        challengerId: incomingChallenge.challengerId,
-                        gameId: newGame.id
-                    });
-                }
+                ensureSocket().emit('challenge-accepted', {
+                    challengerId: incomingChallenge.challengerId,
+                    gameId: newGame.id
+                });
                 router.push(`/game/${newGame.id}`);
             } else {
                 alert('Failed to create game.');
@@ -187,9 +206,8 @@ function UsersPage() {
     const handleDeclineChallenge = () => {
         if (!incomingChallenge || !currentUserId) return;
         const currentUser = users.find(u => u.id === currentUserId);
-        const globalSocket = getGlobalSocket();
 
-        globalSocket?.emit('challenge-declined', {
+        ensureSocket().emit('challenge-declined', {
             challengerId: incomingChallenge.challengerId,
             declinerName: currentUser?.displayName || currentUser?.verusId || 'Someone'
         });
