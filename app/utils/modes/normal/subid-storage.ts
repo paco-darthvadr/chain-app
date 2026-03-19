@@ -38,9 +38,13 @@ export async function createGameSubId(subIdName: string): Promise<{ address: str
   }
 
   // Step 1: registernamecommitment
+  // Params: name, controladdress, referralidentity, parentnameorid, sourceoffunds
+  // Name is just the SubID name (e.g., "game0001"), parent is the ChessGame@ i-address
   const parentAddress = process.env.CHESSGAME_IDENTITY_ADDRESS;
   const commitment = await rpcCall('registernamecommitment', [
-    fullName,
+    subIdName,
+    parentAddress,
+    '',
     parentAddress,
   ]);
   console.log(`[SubID] Name commitment for ${fullName}:`, commitment);
