@@ -21,7 +21,7 @@ export default function ShowcaseSigningPrompt({
   const [copied, setCopied] = useState(false);
   const [waitingForOpponent, setWaitingForOpponent] = useState(false);
 
-  const signCommand = `verus -chain=VRSCTEST signmessage "${playerVerusId}" "${messageToSign}"`;
+  const signCommand = `verus -chain=VRSCTEST signmessage "${playerVerusId}" '${messageToSign}'`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(signCommand);
