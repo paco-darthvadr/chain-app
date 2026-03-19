@@ -598,11 +598,12 @@ const GameClient = ({ game }: GameClientProps) => {
         )}
         <div className="flex flex-col md:flex-row gap-4 p-4 max-w-7xl mx-auto">
             {gameState.status === 'COMPLETED' && (
-                <GameOver 
+                <GameOver
                     game={gameState}
                     winnerName={winner?.displayName || winner?.verusId || 'Unknown'}
                     onRematch={handleRematch}
                     rematchOffered={rematchOffered}
+                    currentPlayer={currentPlayer}
                 />
             )}
             {incomingRematch && (

@@ -14,7 +14,7 @@ const SubIdStatus: React.FC<SubIdStatusProps> = ({ gameId, mode }) => {
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
     useEffect(() => {
-        if (mode !== 'normal') return;
+        if (mode !== 'normal' && mode !== 'showcase') return;
 
         const checkStatus = async () => {
             try {
@@ -44,7 +44,7 @@ const SubIdStatus: React.FC<SubIdStatusProps> = ({ gameId, mode }) => {
         };
     }, [gameId, mode]);
 
-    if (mode !== 'normal' || status === 'none') return null;
+    if ((mode !== 'normal' && mode !== 'showcase') || status === 'none') return null;
 
     const statusConfig = {
         pending: {

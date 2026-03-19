@@ -41,9 +41,9 @@ export default function SocketRegistration() {
         });
 
         // Relay all socket events as window CustomEvents so any page can listen
-        socket.on('new-challenge', ({ challengerId, challengerName }) => {
+        socket.on('new-challenge', ({ challengerId, challengerName, mode }) => {
             window.dispatchEvent(new CustomEvent('socket:new-challenge', {
-                detail: { challengerId, challengerName }
+                detail: { challengerId, challengerName, mode }
             }));
         });
 
@@ -54,6 +54,9 @@ export default function SocketRegistration() {
         });
 
         socket.on('game-started', ({ gameId }) => {
+            window.dispatchEvent(new CustomEvent('socket:game-started', {
+                detail: { gameId }
+            }));
             window.location.href = `/game/${gameId}`;
         });
 
