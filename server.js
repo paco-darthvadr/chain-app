@@ -71,16 +71,17 @@ io.on('connection', (socket) => {
     io.to(roomId).emit('updateUserList', { users: rooms[roomId] });
   });
 
-  socket.on('challenge-user', ({ challengerId, challengerName, challengeeId }) => {
+  socket.on('challenge-user', ({ challengerId, challengerName, challengeeId, mode }) => {
     console.log(`Challenge attempt: ${challengerName} (${challengerId}) challenging ${challengeeId}`);
     console.log('Available users:', Object.keys(userSockets));
-    
+
     const challengeeSocketId = userSockets[challengeeId];
     if (challengeeSocketId) {
         console.log(`Sending challenge to ${challengeeId} at socket ${challengeeSocketId}`);
         io.to(challengeeSocketId).emit('new-challenge', {
             challengerId: challengerId,
-            challengerName: challengerName
+            challengerName: challengerName,
+            mode: mode
         });
     } else {
         console.log(`User ${challengeeId} not found in userSockets`);

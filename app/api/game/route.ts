@@ -32,7 +32,7 @@ export async function POST(req: Request) {
         });
 
         // For Normal mode, create a GameSession with SubID name
-        if (gameMode === 'normal') {
+        if (gameMode === 'normal' || gameMode === 'showcase') {
             // Atomic counter increment for SubID naming (safe for SQLite)
             await prisma.$executeRaw`INSERT OR IGNORE INTO GameCounter (id, nextGame) VALUES ('singleton', 1)`;
             const gameNumber = await prisma.$transaction(async (tx) => {
