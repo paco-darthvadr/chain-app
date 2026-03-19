@@ -184,6 +184,12 @@ export const normalHandler: ModeHandler = {
       const duration = Math.floor((fullGame.updatedAt.getTime() - fullGame.createdAt.getTime()) / 1000);
       const moves = fullGame.moves.map(m => m.move);
 
+      // Collect per-move signatures if tournament storage requested
+      const includeMovesSigs = (game as any)._includeMovesSigs === true;
+      const moveSigs = includeMovesSigs
+        ? fullGame.moves.filter(m => m.signature).map(m => m.signature as string)
+        : undefined;
+
       const gameData: GameData = {
         white: fullGame.whitePlayer.verusId,
         black: fullGame.blackPlayer.verusId,
@@ -196,6 +202,8 @@ export const normalHandler: ModeHandler = {
         gameHash: session.gameHash,
         whiteSig: session.whiteFinalSig || '',
         blackSig: session.blackFinalSig || '',
+        mode: includeMovesSigs ? 'tournament' : ((fullGame as any).mode || 'normal'),
+        moveSigs,
       };
 
       const { txid } = await storeGameData(subIdName, gameData);

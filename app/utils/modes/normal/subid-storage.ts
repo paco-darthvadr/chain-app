@@ -140,17 +140,18 @@ export interface GameData {
   gameHash: string;
   whiteSig: string;
   blackSig: string;
+  mode: string;           // "normal", "tournament"
+  moveSigs?: string[];    // per-move signatures (tournament mode or user opt-in)
 }
 
 /**
  * Update a game SubID's contentmultimap with final game data.
- * NOTE: Uses DATA_TYPE_STRING.vdxfid as the value wrapper to match the existing
- * codebase pattern in blockchain-storage.js. The outer key is a placeholder —
- * replace with proper VDXF key IDs (i-addresses from getvdxfid) when the user creates
- * the ChessGame@ identity and registers the VDXF namespace.
- * Until then, this will NOT work against a real Verus daemon — RPC expects VDXF key IDs.
+ * Each field stored under its own VDXF key from the chessgame::game.v1 schema.
+ * Values are hex-encoded strings. Any app that knows the VDXF keys can parse game data.
  */
 export async function storeGameData(subIdName: string, data: GameData): Promise<{ txid: string }> {
+  const { CHESS_VDXF_KEYS, hexEncode } = await import('./vdxf-keys');
+
   const parentName = process.env.CHESSGAME_IDENTITY_NAME || 'ChessGame@';
   const fullName = `${subIdName}.${parentName.replace('@', '')}@`;
 
@@ -158,31 +159,27 @@ export async function storeGameData(subIdName: string, data: GameData): Promise<
   const identityResult = await rpcCall('getidentity', [fullName]);
   const identity = identityResult.identity;
 
-  // Build contentmultimap with game data.
-  // Using DATA_TYPE_STRING.vdxfid as the value wrapper to match the existing
-  // codebase pattern in blockchain-storage.js.
-  const { DATA_TYPE_STRING } = require('verus-typescript-primitives/dist/vdxf/keys');
-  const vdxfKey = DATA_TYPE_STRING.vdxfid;
-
-  // Serialize all game data as a single JSON blob under one VDXF key
-  const gameBlob = JSON.stringify({
-    white: data.white,
-    black: data.black,
-    winner: data.winner,
-    result: data.result,
-    moves: data.moves,
-    moveCount: data.moveCount,
-    duration: data.duration,
-    startedAt: data.startedAt,
-    gameHash: data.gameHash,
-    whiteSig: data.whiteSig,
-    blackSig: data.blackSig,
-  });
-  const gameDataHex = Buffer.from(gameBlob).toString('hex');
-
-  const contentmultimap = {
-    [vdxfKey]: [{ [vdxfKey]: gameDataHex }],
+  // Build contentmultimap with per-field VDXF keys
+  const contentmultimap: Record<string, string[]> = {
+    [CHESS_VDXF_KEYS.version.vdxfid]:   [hexEncode('1')],
+    [CHESS_VDXF_KEYS.white.vdxfid]:     [hexEncode(data.white)],
+    [CHESS_VDXF_KEYS.black.vdxfid]:     [hexEncode(data.black)],
+    [CHESS_VDXF_KEYS.winner.vdxfid]:    [hexEncode(data.winner)],
+    [CHESS_VDXF_KEYS.result.vdxfid]:    [hexEncode(data.result)],
+    [CHESS_VDXF_KEYS.moves.vdxfid]:     [hexEncode(JSON.stringify(data.moves))],
+    [CHESS_VDXF_KEYS.movecount.vdxfid]: [hexEncode(String(data.moveCount))],
+    [CHESS_VDXF_KEYS.duration.vdxfid]:  [hexEncode(String(data.duration))],
+    [CHESS_VDXF_KEYS.startedat.vdxfid]: [hexEncode(String(data.startedAt))],
+    [CHESS_VDXF_KEYS.gamehash.vdxfid]:  [hexEncode(data.gameHash)],
+    [CHESS_VDXF_KEYS.whitesig.vdxfid]:  [hexEncode(data.whiteSig)],
+    [CHESS_VDXF_KEYS.blacksig.vdxfid]:  [hexEncode(data.blackSig)],
+    [CHESS_VDXF_KEYS.mode.vdxfid]:      [hexEncode(data.mode)],
   };
+
+  // Include per-move signatures if provided (tournament mode or user opt-in)
+  if (data.moveSigs && data.moveSigs.length > 0) {
+    contentmultimap[CHESS_VDXF_KEYS.movesigs.vdxfid] = [hexEncode(JSON.stringify(data.moveSigs))];
+  }
 
   // Update identity with game data
   const updateParams = {

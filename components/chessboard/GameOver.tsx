@@ -17,6 +17,7 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
   );
   const [blockchainMessage, setBlockchainMessage] = useState('');
   const [gameSession, setGameSession] = useState<any>(null);
+  const [storageMode, setStorageMode] = useState<'normal' | 'tournament'>('normal');
 
   // Trigger confetti
   useEffect(() => {
@@ -91,6 +92,7 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
       const res = await fetch(`/api/game/${game.id}/store-blockchain`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tournament: storageMode === 'tournament' }),
       });
       const data = await res.json();
 
@@ -178,6 +180,35 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
                 Chain verified at {new Date(gameSession.verifiedAt).toLocaleTimeString()}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Storage Mode Toggle */}
+        {game?.mode === 'normal' && (blockchainStatus === 'idle' || blockchainStatus === 'verified' || blockchainStatus === 'failed') && (
+          <div className="text-left text-sm bg-muted p-3 rounded-md space-y-2">
+            <p className="font-medium">Storage mode:</p>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="storageMode"
+                checked={storageMode === 'normal'}
+                onChange={() => setStorageMode('normal')}
+                className="accent-primary"
+              />
+              <span>Normal</span>
+              <span className="text-muted-foreground text-xs">- game data + final signatures</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="storageMode"
+                checked={storageMode === 'tournament'}
+                onChange={() => setStorageMode('tournament')}
+                className="accent-primary"
+              />
+              <span>Tournament</span>
+              <span className="text-muted-foreground text-xs">- includes all per-move signatures</span>
+            </label>
           </div>
         )}
 

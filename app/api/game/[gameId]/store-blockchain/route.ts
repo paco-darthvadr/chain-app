@@ -33,8 +33,18 @@ export async function POST(request: Request, { params }: { params: { gameId: str
             }, { status: 400 });
         }
 
-        // Store on chain
-        const result = await handler.storeOnChain(gameForMode);
+        // Check if tournament storage was requested (includes per-move signatures)
+        let includeMovesSigs = false;
+        try {
+            const body = await request.json();
+            includeMovesSigs = body?.tournament === true;
+        } catch (e) {
+            // No body or not JSON — default to normal
+        }
+
+        // Store on chain — pass tournament flag via game object
+        const gameWithFlags = { ...gameForMode, _includeMovesSigs: includeMovesSigs };
+        const result = await handler.storeOnChain(gameWithFlags);
         return NextResponse.json(result);
     }
 
