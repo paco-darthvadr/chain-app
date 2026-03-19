@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 
 interface ShowcaseSigningPromptProps {
   gameId: string;
@@ -9,15 +9,17 @@ interface ShowcaseSigningPromptProps {
   phase: 'open' | 'close';
   messageToSign: string;
   onSigned: () => void;
+  onBothSigned?: () => void;
 }
 
 export default function ShowcaseSigningPrompt({
-  gameId, player, playerVerusId, phase, messageToSign, onSigned,
+  gameId, player, playerVerusId, phase, messageToSign, onSigned, onBothSigned,
 }: ShowcaseSigningPromptProps) {
   const [signature, setSignature] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [waitingForOpponent, setWaitingForOpponent] = useState(false);
 
   const signCommand = `verus -chain=VRSCTEST signmessage "${playerVerusId}" "${messageToSign}"`;
 
@@ -41,6 +43,13 @@ export default function ShowcaseSigningPrompt({
       const data = await res.json();
       if (data.success) {
         onSigned();
+        if (data.bothSigned) {
+          // Both players signed — unlock the board
+          onBothSigned?.();
+        } else {
+          // Only this player signed — wait for opponent
+          setWaitingForOpponent(true);
+        }
       } else {
         setError(data.error || 'Signature verification failed');
       }
@@ -49,6 +58,22 @@ export default function ShowcaseSigningPrompt({
     }
     setSubmitting(false);
   };
+
+  // Poll for opponent's signature when waiting
+  React.useEffect(() => {
+    if (!waitingForOpponent || phase !== 'open') return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/game/${gameId}/showcase-sign`);
+        const data = await res.json();
+        if (data.whiteHasSigned && data.blackHasSigned) {
+          clearInterval(interval);
+          onBothSigned?.();
+        }
+      } catch {}
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [waitingForOpponent, phase, gameId, onBothSigned]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -102,13 +127,20 @@ export default function ShowcaseSigningPrompt({
 
         {error && <p className="text-red-500 text-sm">{error}</p>}
 
-        <button
-          onClick={handleSubmit}
-          disabled={submitting || !signature.trim()}
-          className="w-full px-4 py-2 rounded-md bg-primary text-primary-foreground font-medium disabled:opacity-50"
-        >
-          {submitting ? 'Verifying...' : 'Submit Signature'}
-        </button>
+        {waitingForOpponent ? (
+          <div className="text-center space-y-2">
+            <div className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-primary border-r-transparent" />
+            <p className="text-sm text-muted-foreground">Your signature submitted. Waiting for opponent to sign...</p>
+          </div>
+        ) : (
+          <button
+            onClick={handleSubmit}
+            disabled={submitting || !signature.trim()}
+            className="w-full px-4 py-2 rounded-md bg-primary text-primary-foreground font-medium disabled:opacity-50"
+          >
+            {submitting ? 'Verifying...' : 'Submit Signature'}
+          </button>
+        )}
       </div>
     </div>
   );

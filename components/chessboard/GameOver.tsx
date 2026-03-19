@@ -59,11 +59,8 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
           return;
         }
 
-        // For showcase mode, just load the session — no auto-verify
-        if (game?.mode === 'showcase') {
-          if (data.gameSession) setGameSession(data.gameSession);
-          return;
-        }
+        // Showcase mode: auto-verify the hash chain so gameHash is available
+        // for the closing signature prompt (fix #5)
 
         // Not verified yet — trigger verification via a verify-only endpoint
         // We call store-blockchain which runs onGameEnd (verify) then storeOnChain

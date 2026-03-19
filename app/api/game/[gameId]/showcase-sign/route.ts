@@ -46,8 +46,8 @@ export async function GET(request: Request, { params }: { params: { gameId: stri
     return NextResponse.json({
       message,
       commitment,
-      whiteHasSigned: !!game.gameSession?.whiteFinalSig,
-      blackHasSigned: !!game.gameSession?.blackFinalSig,
+      whiteHasSigned: !!game.gameSession?.whiteOpeningSig,
+      blackHasSigned: !!game.gameSession?.blackOpeningSig,
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -78,6 +78,14 @@ export async function POST(request: Request, { params }: { params: { gameId: str
     const playerUser = player === 'white' ? game.whitePlayer : game.blackPlayer;
     const playerName = getPlayerName(playerUser);
 
+    // Auth check: verify the caller matches the player they claim to be (fix #4/#7)
+    const callerUserId = request.headers.get('x-user-id') || '';
+    const expectedPlayerId = player === 'white' ? game.whitePlayerId : game.blackPlayerId;
+    // If we have a caller ID, enforce it matches
+    if (callerUserId && callerUserId !== expectedPlayerId) {
+      return NextResponse.json({ error: 'You can only sign as your own player' }, { status: 403 });
+    }
+
     if (phase === 'open') {
       const commitment = buildCommitment(game);
       const isValid = await verifyOpeningSignature(playerName, signature, commitment);
@@ -85,7 +93,8 @@ export async function POST(request: Request, { params }: { params: { gameId: str
         return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
       }
 
-      const sigField = player === 'white' ? 'whiteFinalSig' : 'blackFinalSig';
+      // Store in dedicated opening sig columns (fix #1)
+      const sigField = player === 'white' ? 'whiteOpeningSig' : 'blackOpeningSig';
       await prisma.gameSession.update({
         where: { gameId: params.gameId },
         data: { [sigField]: signature },
@@ -94,7 +103,7 @@ export async function POST(request: Request, { params }: { params: { gameId: str
       const updatedSession = await prisma.gameSession.findUnique({
         where: { gameId: params.gameId },
       });
-      const bothSigned = !!updatedSession?.whiteFinalSig && !!updatedSession?.blackFinalSig;
+      const bothSigned = !!updatedSession?.whiteOpeningSig && !!updatedSession?.blackOpeningSig;
 
       return NextResponse.json({
         success: true,
@@ -114,6 +123,7 @@ export async function POST(request: Request, { params }: { params: { gameId: str
         return NextResponse.json({ error: 'Invalid closing signature' }, { status: 401 });
       }
 
+      // Store in closing sig columns — separate from opening sigs (fix #1)
       const sigField = player === 'white' ? 'whiteFinalSig' : 'blackFinalSig';
       await prisma.gameSession.update({
         where: { gameId: params.gameId },

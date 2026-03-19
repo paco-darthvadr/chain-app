@@ -19,8 +19,8 @@ export async function POST(request: Request, { params }: { params: { gameId: str
             return NextResponse.json({ error: 'Game is not completed' }, { status: 400 });
         }
 
-        if (game.mode !== 'normal') {
-            return NextResponse.json({ error: 'Verification only applies to Normal mode' }, { status: 400 });
+        if (game.mode !== 'normal' && game.mode !== 'showcase') {
+            return NextResponse.json({ error: 'Verification only applies to Normal and Showcase modes' }, { status: 400 });
         }
 
         // Check if already verified
@@ -31,8 +31,8 @@ export async function POST(request: Request, { params }: { params: { gameId: str
             });
         }
 
-        // Run verification
-        const handler = getModeHandler('normal');
+        // Run verification using the correct mode handler
+        const handler = getModeHandler(game.mode);
         const endResult = await handler.onGameEnd(game);
 
         if (!endResult || !endResult.verified) {

@@ -74,8 +74,8 @@ export const showcaseHandler: ModeHandler = {
       startedAt: Math.floor((fullGame?.createdAt?.getTime() || Date.now()) / 1000),
       mode: 'showcase',
       status: 'in_progress',
-      whiteOpenSig: session.whiteFinalSig || '',
-      blackOpenSig: session.blackFinalSig || '',
+      whiteOpenSig: session.whiteOpeningSig || '',
+      blackOpenSig: session.blackOpeningSig || '',
     };
 
     try {
@@ -116,17 +116,18 @@ export const showcaseHandler: ModeHandler = {
     }
 
     const gameHash = computeGameHash(packages);
-    const whiteFinalSig = signer.sign(gameHash);
-    const blackFinalSig = signer.sign(gameHash);
 
+    // For showcase mode, only store the gameHash and verification timestamp.
+    // Do NOT overwrite whiteFinalSig/blackFinalSig — those come from player
+    // signmessage submissions via the showcase-sign API. (fix #2)
     if (session) {
       await prisma.gameSession.update({
         where: { gameId: game.id },
-        data: { gameHash, whiteFinalSig, blackFinalSig, verifiedAt: new Date() },
+        data: { gameHash, verifiedAt: new Date() },
       });
     }
 
-    return { gameHash, whiteFinalSig, blackFinalSig, verified: true };
+    return { gameHash, whiteFinalSig: '', blackFinalSig: '', verified: true };
   },
 
   async storeOnChain(game: any): Promise<StorageResult> {
@@ -166,13 +167,13 @@ export const showcaseHandler: ModeHandler = {
       startedAt: Math.floor(fullGame.createdAt.getTime() / 1000),
       mode: 'showcase',
       status: 'completed',
-      whiteOpenSig: session.whiteFinalSig || '',
-      blackOpenSig: session.blackFinalSig || '',
+      whiteOpenSig: session.whiteOpeningSig || '',   // opening sigs from dedicated columns
+      blackOpenSig: session.blackOpeningSig || '',
       winner: winnerName,
       result: fullGame.status === 'COMPLETED' ? 'checkmate' : fullGame.status.toLowerCase(),
       duration,
       gameHash: session.gameHash,
-      whiteSig: session.whiteFinalSig || '',
+      whiteSig: session.whiteFinalSig || '',          // closing sigs from dedicated columns
       blackSig: session.blackFinalSig || '',
       moveSigs,
     };

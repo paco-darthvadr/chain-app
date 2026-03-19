@@ -73,8 +73,10 @@ model GameSession {
   subIdName       String?   // "game0001" — null until assigned
   subIdAddress    String?   // i-address of the SubID once created
   gameHash        String?   // final SHA256 hash chain result
-  whiteFinalSig   String?   // white's signature on gameHash
-  blackFinalSig   String?   // black's signature on gameHash
+  whiteFinalSig   String?   // white's closing signature on gameHash
+  blackFinalSig   String?   // black's closing signature on gameHash
+  whiteOpeningSig String?   // showcase: white's opening commitment signature
+  blackOpeningSig String?   // showcase: black's opening commitment signature
   verifiedAt      DateTime? // when server verified all moves + sigs
   storedAt        DateTime? // when written to chain
   txId            String?   // blockchain tx ID

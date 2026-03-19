@@ -588,6 +588,9 @@ const GameClient = ({ game }: GameClientProps) => {
             phase={showcaseSigningPhase}
             messageToSign={showcaseMessage}
             onSigned={() => {
+              // Individual player signed — don't unlock yet
+            }}
+            onBothSigned={() => {
               setShowcaseSigningPhase(null);
               setShowcaseReady(true);
             }}
