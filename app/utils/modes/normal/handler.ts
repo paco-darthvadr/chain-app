@@ -190,10 +190,22 @@ export const normalHandler: ModeHandler = {
         ? fullGame.moves.filter(m => m.signature).map(m => m.signature as string)
         : undefined;
 
+      // Resolve winner from Prisma cuid to VerusID
+      let winnerVerusId = '';
+      if (fullGame.winner) {
+        if (fullGame.winner === fullGame.whitePlayerId) {
+          winnerVerusId = fullGame.whitePlayer.verusId;
+        } else if (fullGame.winner === fullGame.blackPlayerId) {
+          winnerVerusId = fullGame.blackPlayer.verusId;
+        } else {
+          winnerVerusId = fullGame.winner; // Already a verusId or 'DRAW'
+        }
+      }
+
       const gameData: GameData = {
         white: fullGame.whitePlayer.verusId,
         black: fullGame.blackPlayer.verusId,
-        winner: fullGame.winner || '',
+        winner: winnerVerusId,
         result: fullGame.status === 'COMPLETED' ? 'checkmate' : fullGame.status.toLowerCase(),
         moves,
         moveCount: moves.length,
