@@ -144,13 +144,31 @@ export interface GameData {
   moveSigs?: string[];    // per-move signatures (tournament mode or user opt-in)
 }
 
+// DataDescriptor key i-address (the type marker for DataDescriptor objects)
+const DD_KEY = 'i4GC1YGEVD21afWudGoFJVdnfjJ5XWnCQv';
+
+/**
+ * Wrap a value as a DataDescriptor for contentmultimap.
+ * The daemon auto-decodes these into readable JSON with labels and MIME types.
+ */
+function dd(value: string, label: string, mimetype: string = 'text/plain'): object {
+  return {
+    [DD_KEY]: {
+      version: 1,
+      mimetype,
+      objectdata: { message: value },
+      label,
+    }
+  };
+}
+
 /**
  * Update a game SubID's contentmultimap with final game data.
- * Each field stored under its own VDXF key from the chessgame::game.v1 schema.
- * Values are hex-encoded strings. Any app that knows the VDXF keys can parse game data.
+ * Each field stored as a DataDescriptor under its own VDXF key.
+ * The daemon auto-decodes DataDescriptors into readable JSON with labels and MIME types.
  */
 export async function storeGameData(subIdName: string, data: GameData): Promise<{ txid: string }> {
-  const { CHESS_VDXF_KEYS, hexEncode } = await import('./vdxf-keys');
+  const { CHESS_VDXF_KEYS } = await import('./vdxf-keys');
 
   const parentName = process.env.CHESSGAME_IDENTITY_NAME || 'ChessGame@';
   const fullName = `${subIdName}.${parentName.replace('@', '')}@`;
@@ -159,26 +177,27 @@ export async function storeGameData(subIdName: string, data: GameData): Promise<
   const identityResult = await rpcCall('getidentity', [fullName]);
   const identity = identityResult.identity;
 
-  // Build contentmultimap with per-field VDXF keys
-  const contentmultimap: Record<string, string[]> = {
-    [CHESS_VDXF_KEYS.version.vdxfid]:   [hexEncode('1')],
-    [CHESS_VDXF_KEYS.white.vdxfid]:     [hexEncode(data.white)],
-    [CHESS_VDXF_KEYS.black.vdxfid]:     [hexEncode(data.black)],
-    [CHESS_VDXF_KEYS.winner.vdxfid]:    [hexEncode(data.winner)],
-    [CHESS_VDXF_KEYS.result.vdxfid]:    [hexEncode(data.result)],
-    [CHESS_VDXF_KEYS.moves.vdxfid]:     [hexEncode(JSON.stringify(data.moves))],
-    [CHESS_VDXF_KEYS.movecount.vdxfid]: [hexEncode(String(data.moveCount))],
-    [CHESS_VDXF_KEYS.duration.vdxfid]:  [hexEncode(String(data.duration))],
-    [CHESS_VDXF_KEYS.startedat.vdxfid]: [hexEncode(String(data.startedAt))],
-    [CHESS_VDXF_KEYS.gamehash.vdxfid]:  [hexEncode(data.gameHash)],
-    [CHESS_VDXF_KEYS.whitesig.vdxfid]:  [hexEncode(data.whiteSig)],
-    [CHESS_VDXF_KEYS.blacksig.vdxfid]:  [hexEncode(data.blackSig)],
-    [CHESS_VDXF_KEYS.mode.vdxfid]:      [hexEncode(data.mode)],
+  // Build contentmultimap with DataDescriptor-wrapped values per field
+  const K = CHESS_VDXF_KEYS;
+  const contentmultimap: Record<string, object[]> = {
+    [K.version.vdxfid]:   [dd('1',                         K.version.uri)],
+    [K.white.vdxfid]:     [dd(data.white,                  K.white.uri)],
+    [K.black.vdxfid]:     [dd(data.black,                  K.black.uri)],
+    [K.winner.vdxfid]:    [dd(data.winner,                 K.winner.uri)],
+    [K.result.vdxfid]:    [dd(data.result,                 K.result.uri)],
+    [K.moves.vdxfid]:     [dd(JSON.stringify(data.moves),  K.moves.uri, 'application/json')],
+    [K.movecount.vdxfid]: [dd(String(data.moveCount),      K.movecount.uri)],
+    [K.duration.vdxfid]:  [dd(String(data.duration),       K.duration.uri)],
+    [K.startedat.vdxfid]: [dd(String(data.startedAt),      K.startedat.uri)],
+    [K.gamehash.vdxfid]:  [dd(data.gameHash,               K.gamehash.uri)],
+    [K.whitesig.vdxfid]:  [dd(data.whiteSig,               K.whitesig.uri)],
+    [K.blacksig.vdxfid]:  [dd(data.blackSig,               K.blacksig.uri)],
+    [K.mode.vdxfid]:      [dd(data.mode,                   K.mode.uri)],
   };
 
   // Include per-move signatures if provided (tournament mode or user opt-in)
   if (data.moveSigs && data.moveSigs.length > 0) {
-    contentmultimap[CHESS_VDXF_KEYS.movesigs.vdxfid] = [hexEncode(JSON.stringify(data.moveSigs))];
+    contentmultimap[K.movesigs.vdxfid] = [dd(JSON.stringify(data.moveSigs), K.movesigs.uri, 'application/json')];
   }
 
   // Update identity with game data
