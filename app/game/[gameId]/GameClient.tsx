@@ -18,6 +18,7 @@ import GameOver from '@/components/chessboard/GameOver';
 import GameMoves from '@/components/chessboard/GameMoves';
 import { useRouter } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import SubIdStatus from '@/components/chessboard/SubIdStatus';
 
 interface Move {
     piece: string;
@@ -615,6 +616,7 @@ const GameClient = ({ game }: GameClientProps) => {
             </div>
             <div className="flex flex-row gap-6 ml-auto" style={{ minWidth: '400px', maxWidth: '500px' }}>
                 <div style={{ width: '320px' }}>
+                    <SubIdStatus gameId={gameState.id} mode={(gameState as any).mode || 'original'} />
                     <MoveHistory 
                         moves={moves} 
                         currentTurn={getCurrentTurn()} 
