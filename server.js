@@ -106,6 +106,7 @@ io.on('connection', (socket) => {
       if (challengerSockets) {
           for (const sid of challengerSockets) {
               io.to(sid).emit('challenge-denied', { declinerName });
+          }
       }
   });
 
