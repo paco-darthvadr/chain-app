@@ -238,7 +238,8 @@ export async function registerOneSubId(): Promise<void> {
     const fullName = `${subIdName}.${parentName.replace('@', '')}@`;
     let identityAddress: string | null = null;
 
-    for (let attempt = 0; attempt < 6; attempt++) {
+    // registeridentity tx also needs to be mined — poll longer for pool
+    for (let attempt = 0; attempt < 18; attempt++) {
       try {
         const registered = await rpcCall('getidentity', [fullName]);
         if (registered?.identity?.identityaddress) {
@@ -248,9 +249,9 @@ export async function registerOneSubId(): Promise<void> {
       } catch {
         // Not found yet
       }
-      if (attempt < 5) {
+      if (attempt < 17) {
         console.log(
-          `[SubID Pool] ${fullName} not found yet, waiting 10 s... (${attempt + 1}/6)`,
+          `[SubID Pool] ${fullName} not found yet, waiting 10 s... (${attempt + 1}/18)`,
         );
         await new Promise((resolve) => setTimeout(resolve, 10000));
       }
@@ -258,7 +259,7 @@ export async function registerOneSubId(): Promise<void> {
 
     if (!identityAddress) {
       throw new Error(
-        `${fullName} registered but not visible on chain after 6 attempts`,
+        `${fullName} registered but not visible on chain after 18 attempts (3 min)`,
       );
     }
 
