@@ -125,18 +125,18 @@ const GameClient = ({ game }: GameClientProps) => {
 
         newSocket.on('opponent-left', async ({ leaverId }) => {
             if (playerVerusId) {
-                const isOpponent = (currentPlayer === 'white' && gameState.blackPlayer.verusId === leaverId) ||
-                                 (currentPlayer === 'black' && gameState.whitePlayer.verusId === leaverId);
+                const isOpponent = (currentPlayer === 'white' && gameState.player2.verusId === leaverId) ||
+                                 (currentPlayer === 'black' && gameState.player1.verusId === leaverId);
                 
                 if (isOpponent && !hasUpdatedGameStatus.current) {
-                    const winnerData = currentPlayer === 'white' ? gameState.whitePlayer : gameState.blackPlayer;
+                    const winnerData = currentPlayer === 'white' ? gameState.player1 : gameState.player2;
                     setWinner(winnerData);
                     setGameResult('walkover');
                     
                     // Update the game status in the database
                     try {
                         hasUpdatedGameStatus.current = true;
-                        const updatedGame = await endGame(gameState.id, currentPlayer === 'white' ? 'OUR' : 'OPPONENT');
+                        const updatedGame = await endGame(gameState.id, currentPlayer === 'white' ? 1 : 2);
                         if (updatedGame) {
                             setGameState(updatedGame); // Update local state with the database result
                             console.log('Game marked as COMPLETED in database (opponent left)');
@@ -159,7 +159,7 @@ const GameClient = ({ game }: GameClientProps) => {
                 if (updatedGame && updatedGame.status === 'COMPLETED') {
                     hasUpdatedGameStatus.current = true;
                     setGameState(updatedGame);
-                    const winnerPlayer = currentPlayer === 'white' ? gameState.whitePlayer : gameState.blackPlayer;
+                    const winnerPlayer = currentPlayer === 'white' ? gameState.player1 : gameState.player2;
                     setWinner(winnerPlayer);
                     setGameResult('resignation');
                 }
@@ -194,7 +194,7 @@ const GameClient = ({ game }: GameClientProps) => {
             }
             
             if (newBoard.winningTeam) {
-                const winnerData = newBoard.winningTeam === TeamType.OUR ? gameState.whitePlayer : gameState.blackPlayer;
+                const winnerData = newBoard.winningTeam === TeamType.OUR ? gameState.player1 : gameState.player2;
                 setWinner(winnerData);
                 setGameResult('checkmate');
                 
@@ -203,7 +203,7 @@ const GameClient = ({ game }: GameClientProps) => {
                     const handleExistingGameEnd = async () => {
                         try {
                             hasUpdatedGameStatus.current = true;
-                            const updatedGame = await endGame(gameState.id, newBoard.winningTeam === TeamType.OUR ? 'OUR' : 'OPPONENT');
+                            const updatedGame = await endGame(gameState.id, newBoard.winningTeam === TeamType.OUR ? 1 : 2);
                             if (updatedGame) {
                                 setGameState(updatedGame);
                                 console.log('Existing completed game marked as COMPLETED in database');
@@ -217,7 +217,7 @@ const GameClient = ({ game }: GameClientProps) => {
                 }
             }
         }
-    }, [gameState.boardState, gameState.whitePlayer, gameState.blackPlayer, gameState.status, gameState.id]);
+    }, [gameState.boardState, gameState.player1, gameState.player2, gameState.status, gameState.id]);
 
     useEffect(() => {
         if (socket && playerVerusId && gameState.id) {
@@ -236,13 +236,13 @@ const GameClient = ({ game }: GameClientProps) => {
           const data = await res.json();
           if (!data.message) return;
 
-          const playerSide = currentPlayer === 'white' ? 'whiteHasSigned' : 'blackHasSigned';
-          const otherSide = currentPlayer === 'white' ? 'blackHasSigned' : 'whiteHasSigned';
+          const playerSide = currentPlayer === 'white' ? 'player1HasSigned' : 'player2HasSigned';
+          const otherSide = currentPlayer === 'white' ? 'player2HasSigned' : 'player1HasSigned';
           if (!data[playerSide]) {
             // Current player hasn't signed yet — show signing prompt
             setShowcaseMessage(data.message);
             setShowcaseSigningPhase('open');
-          } else if (data.whiteHasSigned && data.blackHasSigned) {
+          } else if (data.player1HasSigned && data.player2HasSigned) {
             // Both signed — unlock board
             setShowcaseReady(true);
           } else if (data[playerSide] && !data[otherSide]) {
@@ -291,7 +291,7 @@ const GameClient = ({ game }: GameClientProps) => {
     const isCheckmate = () => {
         if (!board) return false;
         if (board.winningTeam) {
-            const winnerData = board.winningTeam === TeamType.OUR ? gameState.whitePlayer : gameState.blackPlayer;
+            const winnerData = board.winningTeam === TeamType.OUR ? gameState.player1 : gameState.player2;
             if (!winner) setWinner(winnerData);
             if (!gameResult) setGameResult('checkmate');
         }
@@ -304,7 +304,7 @@ const GameClient = ({ game }: GameClientProps) => {
             if (board?.winningTeam && gameState.status !== 'COMPLETED' && !hasUpdatedGameStatus.current) {
                 try {
                     hasUpdatedGameStatus.current = true;
-                    const updatedGame = await endGame(gameState.id, board.winningTeam === TeamType.OUR ? 'OUR' : 'OPPONENT');
+                    const updatedGame = await endGame(gameState.id, board.winningTeam === TeamType.OUR ? 1 : 2);
                     if (updatedGame) {
                         setGameState(updatedGame); // Update local state with the database result
                         console.log('Game marked as COMPLETED in database');
@@ -407,11 +407,11 @@ const GameClient = ({ game }: GameClientProps) => {
 
         try {
             // The resigning player loses — opponent wins
-            const winningTeam = currentPlayer === 'white' ? 'OPPONENT' : 'OUR';
-            const updatedGame = await endGame(gameState.id, winningTeam);
+            const winningPlayer: 1 | 2 = currentPlayer === 'white' ? 2 : 1;
+            const updatedGame = await endGame(gameState.id, winningPlayer);
             if (updatedGame) {
                 setGameState(updatedGame);
-                const opponentPlayer = currentPlayer === 'white' ? gameState.blackPlayer : gameState.whitePlayer;
+                const opponentPlayer = currentPlayer === 'white' ? gameState.player2 : gameState.player1;
                 setWinner(opponentPlayer);
                 setGameResult('resignation');
 
@@ -430,9 +430,9 @@ const GameClient = ({ game }: GameClientProps) => {
         setRematchOffered(true);
         let opponentId = null;
         if (currentPlayer === 'white') {
-            opponentId = gameState.blackPlayer.id;
+            opponentId = gameState.player2.id;
         } else if (currentPlayer === 'black') {
-            opponentId = gameState.whitePlayer.id;
+            opponentId = gameState.player1.id;
         }
         console.log('Emitting rematch-offer', { gameId: gameState.id, opponentId, socketConnected: !!socket });
         if (!socket) {
@@ -536,13 +536,13 @@ const GameClient = ({ game }: GameClientProps) => {
 
     // Function to handle player identification
     const handlePlayerSelect = (userId: string) => {
-        const selectedUser = userId === gameState.whitePlayer.id ? gameState.whitePlayer : gameState.blackPlayer;
+        const selectedUser = userId === gameState.player1.id ? gameState.player1 : gameState.player2;
         setPlayerVerusId(selectedUser.id);
         localStorage.setItem('currentUser', selectedUser.id);
 
-        if (userId === gameState.whitePlayer.id) {
+        if (userId === gameState.player1.id) {
             setCurrentPlayer('white');
-        } else if (userId === gameState.blackPlayer.id) {
+        } else if (userId === gameState.player2.id) {
             setCurrentPlayer('black');
         } else {
             setCurrentPlayer(null);
@@ -559,13 +559,13 @@ const GameClient = ({ game }: GameClientProps) => {
         if (currentPlayer) return;
         const storedUser = localStorage.getItem('currentUser');
         if (storedUser) {
-            if (storedUser === gameState.whitePlayer.id) {
-                handlePlayerSelect(gameState.whitePlayer.id);
-            } else if (storedUser === gameState.blackPlayer.id) {
-                handlePlayerSelect(gameState.blackPlayer.id);
+            if (storedUser === gameState.player1.id) {
+                handlePlayerSelect(gameState.player1.id);
+            } else if (storedUser === gameState.player2.id) {
+                handlePlayerSelect(gameState.player2.id);
             }
         }
-    }, [gameState.whitePlayer.id, gameState.blackPlayer.id, currentPlayer]);
+    }, [gameState.player1.id, gameState.player2.id, currentPlayer]);
 
     // Fallback: show player selection if auto-detect didn't match
     if (!currentPlayer) {
@@ -577,7 +577,7 @@ const GameClient = ({ game }: GameClientProps) => {
                         Select your profile to begin the game.
                     </p>
                     <div className="flex justify-around gap-4">
-                        {[gameState.whitePlayer, gameState.blackPlayer].map((player, index) => (
+                        {[gameState.player1, gameState.player2].map((player, index) => (
                             <button
                                 key={player.id}
                                 onClick={() => handlePlayerSelect(player.id)}
@@ -608,7 +608,7 @@ const GameClient = ({ game }: GameClientProps) => {
             gameId={gameState.id}
             player={currentPlayer as 'white' | 'black'}
             playerVerusId={(() => {
-              const player = currentPlayer === 'white' ? gameState.whitePlayer : gameState.blackPlayer;
+              const player = currentPlayer === 'white' ? gameState.player1 : gameState.player2;
               return player?.displayName ? `${player.displayName}@` : player?.verusId || '';
             })()}
             phase={showcaseSigningPhase}
@@ -647,7 +647,7 @@ const GameClient = ({ game }: GameClientProps) => {
             <div className="md:w-auto">
                 {/* <div className="mb-4 p-4 bg-card rounded-lg border shadow-sm text-center">
                     <h2 className="text-xl font-semibold">
-                        {game.whitePlayer.displayName || game.whitePlayer.verusId} (White) vs {game.blackPlayer.displayName || game.blackPlayer.verusId} (Black)
+                        {game.player1.displayName || game.player1.verusId} (White) vs {game.player2.displayName || game.player2.verusId} (Black)
                     </h2>
                     <p className="text-sm font-medium mt-1">
                         You are: <span className="font-bold">{playerVerusId} ({currentPlayer})</span>
@@ -660,11 +660,11 @@ const GameClient = ({ game }: GameClientProps) => {
                         {/* <div className="flex items-center justify-between w-full gap-8 mb-4">
                             <div className="flex items-center gap-3">
                                 <Avatar className="h-12 w-12">
-                                    <AvatarImage src={game.whitePlayer.avatarUrl || undefined} alt={game.whitePlayer.displayName || game.whitePlayer.verusId} />
-                                    <AvatarFallback>{(game.whitePlayer.displayName || game.whitePlayer.verusId).substring(0, 2).toUpperCase()}</AvatarFallback>
+                                    <AvatarImage src={game.player1.avatarUrl || undefined} alt={game.player1.displayName || game.player1.verusId} />
+                                    <AvatarFallback>{(game.player1.displayName || game.player1.verusId).substring(0, 2).toUpperCase()}</AvatarFallback>
                                 </Avatar>
                                 <div className="text-center">
-                                    <p className="font-semibold text-sm">{game.whitePlayer.displayName || game.whitePlayer.verusId}</p>
+                                    <p className="font-semibold text-sm">{game.player1.displayName || game.player1.verusId}</p>
                                     <p className="text-xs text-muted-foreground">White</p>
                                 </div>
                             </div>
@@ -673,12 +673,12 @@ const GameClient = ({ game }: GameClientProps) => {
                             </div>
                             <div className="flex items-center gap-3">
                                 <div className="text-center">
-                                    <p className="font-semibold text-sm">{game.blackPlayer.displayName || game.blackPlayer.verusId}</p>
+                                    <p className="font-semibold text-sm">{game.player2.displayName || game.player2.verusId}</p>
                                     <p className="text-xs text-muted-foreground">Black</p>
                                 </div>
                                 <Avatar className="h-12 w-12">
-                                    <AvatarImage src={game.blackPlayer.avatarUrl || undefined} alt={game.blackPlayer.displayName || game.blackPlayer.verusId} />
-                                    <AvatarFallback>{(game.blackPlayer.displayName || game.blackPlayer.verusId).substring(0, 2).toUpperCase()}</AvatarFallback>
+                                    <AvatarImage src={game.player2.avatarUrl || undefined} alt={game.player2.displayName || game.player2.verusId} />
+                                    <AvatarFallback>{(game.player2.displayName || game.player2.verusId).substring(0, 2).toUpperCase()}</AvatarFallback>
                                 </Avatar>
                             </div>
                         </div> */}
@@ -700,8 +700,8 @@ const GameClient = ({ game }: GameClientProps) => {
                         currentTurn={getCurrentTurn()} 
                         isCheck={isCheck()} 
                         isCheckmate={isCheckmate()} 
-                        whitePlayer={gameState.whitePlayer}
-                        blackPlayer={gameState.blackPlayer}
+                        whitePlayer={gameState.player1}
+                        blackPlayer={gameState.player2}
                         blockchainStatus={blockchainStatus}
                     />
                 </div>

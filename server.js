@@ -177,7 +177,7 @@ io.on('connection', (socket) => {
         method: 'POST',
         headers: internalHeaders,
         body: JSON.stringify({
-          whitePlayerId: white, blackPlayerId: black,
+          player1Id: white, player2Id: black,
           mode: mode || 'normal',
           boardTheme: boardTheme || 'classic',
           logoMode: logoMode || 'off',
@@ -297,11 +297,11 @@ io.on('connection', (socket) => {
 
       // Randomize colors for the rematch, carry over mode
       const [white, black] = Math.random() < 0.5
-        ? [originalGame.whitePlayerId, originalGame.blackPlayerId]
-        : [originalGame.blackPlayerId, originalGame.whitePlayerId];
+        ? [originalGame.player1Id, originalGame.player2Id]
+        : [originalGame.player2Id, originalGame.player1Id];
       const newGameData = {
-        whitePlayerId: white,
-        blackPlayerId: black,
+        player1Id: white,
+        player2Id: black,
         mode: originalGame.mode || 'normal',
         boardTheme: originalGame.boardTheme || 'classic',
         logoMode: originalGame.logoMode || 'off',

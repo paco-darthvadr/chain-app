@@ -18,19 +18,20 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  gamesAsWhite Game[] @relation("WhitePlayer")
-  gamesAsBlack Game[] @relation("BlackPlayer")
+  gamesAsPlayer1 Game[] @relation("Player1")
+  gamesAsPlayer2 Game[] @relation("Player2")
 }
 
 model Game {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  gameType  String   @default("chess")
 
-  whitePlayer   User     @relation("WhitePlayer", fields: [whitePlayerId], references: [id])
-  whitePlayerId String
-  blackPlayer   User     @relation("BlackPlayer", fields: [blackPlayerId], references: [id])
-  blackPlayerId String
+  player1   User     @relation("Player1", fields: [player1Id], references: [id])
+  player1Id String
+  player2   User     @relation("Player2", fields: [player2Id], references: [id])
+  player2Id String
 
   // JSON string representing the board state
   boardState Json
@@ -75,10 +76,10 @@ model GameSession {
   subIdName       String?   // "game0001" — null until assigned
   subIdAddress    String?   // i-address of the SubID once created
   gameHash        String?   // final SHA256 hash chain result
-  whiteFinalSig   String?   // white's closing signature on gameHash
-  blackFinalSig   String?   // black's closing signature on gameHash
-  whiteOpeningSig String?   // showcase: white's opening commitment signature
-  blackOpeningSig String?   // showcase: black's opening commitment signature
+  player1FinalSig   String?   // player1's closing signature on gameHash
+  player2FinalSig   String?   // player2's closing signature on gameHash
+  player1OpeningSig String?   // showcase: player1's opening commitment signature
+  player2OpeningSig String?   // showcase: player2's opening commitment signature
   verifiedAt      DateTime? // when server verified all moves + sigs
   storedAt        DateTime? // when written to chain
   txId            String?   // blockchain tx ID
@@ -86,18 +87,21 @@ model GameSession {
 }
 
 model GameCounter {
-  id        String  @id @default("singleton")
+  id        String  @id @default("chess")  // per-game-type: 'chess', 'checkers', etc.
   nextGame  Int     @default(1)
 }
 
 model SubIdPool {
   id          String   @id @default(cuid())
-  subIdName   String   @unique  // "game0017"
-  gameNumber  Int      @unique  // 17
+  gameType    String   @default("chess")
+  subIdName   String   @unique  // "chess-game0017"
+  gameNumber  Int                // 17
   address     String?            // i-address once registered
   status      String   @default("registering") // "registering" | "ready" | "used" | "failed"
   commitTxId  String?            // registernamecommitment txid
   createdAt   DateTime @default(now())
   usedAt      DateTime?
   usedByGameId String?           // links to Game.id when assigned
+
+  @@unique([gameType, gameNumber])
 }

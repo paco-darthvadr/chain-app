@@ -8,7 +8,7 @@ export async function POST(request: Request, { params }: { params: { gameId: str
     try {
         const game = await prisma.game.findUnique({
             where: { id: params.gameId },
-            include: { whitePlayer: true, blackPlayer: true, gameSession: true },
+            include: { player1: true, player2: true, gameSession: true },
         });
 
         if (!game) {

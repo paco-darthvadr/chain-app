@@ -1,6 +1,11 @@
 import { rpcCall, waitForConfirmation, buildSubIdFullName } from '@/app/utils/verus-rpc';
+import { dd } from '@/app/utils/data-descriptor';
+import type { VDXFKeySet } from '@/app/games/types';
 
-export async function createGameSubId(subIdName: string): Promise<{ address: string }> {
+export async function createGameSubId(
+  subIdName: string,
+  parentIdentityAddress?: string
+): Promise<{ address: string }> {
   const fullName = buildSubIdFullName(subIdName);
 
   // Check if SubID already exists
@@ -16,7 +21,7 @@ export async function createGameSubId(subIdName: string): Promise<{ address: str
 
   // Step 1: registernamecommitment
   // Params: name, controladdress, referralidentity, parentnameorid, sourceoffunds
-  const parentAddress = process.env.CHESSGAME_IDENTITY_ADDRESS;
+  const parentAddress = parentIdentityAddress || process.env.CHESSGAME_IDENTITY_ADDRESS;
   let commitment;
   try {
     commitment = await rpcCall('registernamecommitment', [
@@ -85,8 +90,8 @@ export async function createGameSubId(subIdName: string): Promise<{ address: str
 }
 
 export interface GameData {
-  white: string;
-  black: string;
+  player1Name: string;
+  player2Name: string;
   winner: string;
   result: string;        // "checkmate", "stalemate", "resignation", "timeout"
   moves: string[];
@@ -94,8 +99,8 @@ export interface GameData {
   duration: number;       // seconds
   startedAt: number;      // unix timestamp
   gameHash: string;
-  whiteSig: string;
-  blackSig: string;
+  player1Sig: string;
+  player2Sig: string;
   mode: string;           // "normal", "tournament"
   moveSigs?: string[];    // per-move signatures (tournament mode or user opt-in)
 }
@@ -103,32 +108,34 @@ export interface GameData {
 /**
  * Update a game SubID's contentmultimap with final game data.
  */
-export async function storeGameData(subIdName: string, data: GameData): Promise<{ txid: string }> {
-  const { CHESS_VDXF_KEYS } = await import('./vdxf-keys');
-  const { dd } = await import('@/app/utils/data-descriptor');
-
-  const fullName = buildSubIdFullName(subIdName);
+export async function storeGameData(
+  subIdName: string,
+  data: GameData,
+  keys: VDXFKeySet,
+  parentIdentityName?: string
+): Promise<{ txid: string }> {
+  const fullName = buildSubIdFullName(subIdName, parentIdentityName);
 
   // Get the current identity
   const identityResult = await rpcCall('getidentity', [fullName]);
   const identity = identityResult.identity;
 
   // Build contentmultimap with DataDescriptor-wrapped values per field
-  const K = CHESS_VDXF_KEYS;
+  const K = keys;
   const contentmultimap: Record<string, object[]> = {
-    [K.version.vdxfid]:   [dd('1',                         K.version.uri)],
-    [K.white.vdxfid]:     [dd(data.white,                  K.white.uri)],
-    [K.black.vdxfid]:     [dd(data.black,                  K.black.uri)],
-    [K.winner.vdxfid]:    [dd(data.winner,                 K.winner.uri)],
-    [K.result.vdxfid]:    [dd(data.result,                 K.result.uri)],
-    [K.moves.vdxfid]:     [dd(JSON.stringify(data.moves),  K.moves.uri, 'application/json')],
-    [K.movecount.vdxfid]: [dd(String(data.moveCount),      K.movecount.uri)],
-    [K.duration.vdxfid]:  [dd(String(data.duration),       K.duration.uri + ' (seconds)')],
-    [K.startedat.vdxfid]: [dd(String(data.startedAt),      K.startedat.uri)],
-    [K.gamehash.vdxfid]:  [dd(data.gameHash,               K.gamehash.uri)],
-    [K.whitesig.vdxfid]:  [dd(data.whiteSig,               K.whitesig.uri)],
-    [K.blacksig.vdxfid]:  [dd(data.blackSig,               K.blacksig.uri)],
-    [K.mode.vdxfid]:      [dd(data.mode,                   K.mode.uri)],
+    [K.version.vdxfid]:      [dd('1',                          K.version.uri)],
+    [K.player1.vdxfid]:      [dd(data.player1Name,             K.player1.uri)],
+    [K.player2.vdxfid]:      [dd(data.player2Name,             K.player2.uri)],
+    [K.winner.vdxfid]:       [dd(data.winner,                  K.winner.uri)],
+    [K.result.vdxfid]:       [dd(data.result,                  K.result.uri)],
+    [K.moves.vdxfid]:        [dd(JSON.stringify(data.moves),   K.moves.uri, 'application/json')],
+    [K.movecount.vdxfid]:    [dd(String(data.moveCount),       K.movecount.uri)],
+    [K.duration.vdxfid]:     [dd(String(data.duration),        K.duration.uri + ' (seconds)')],
+    [K.startedat.vdxfid]:    [dd(String(data.startedAt),       K.startedat.uri)],
+    [K.gamehash.vdxfid]:     [dd(data.gameHash,                K.gamehash.uri)],
+    [K.player1sig.vdxfid]:   [dd(data.player1Sig,              K.player1sig.uri)],
+    [K.player2sig.vdxfid]:   [dd(data.player2Sig,              K.player2sig.uri)],
+    [K.mode.vdxfid]:         [dd(data.mode,                    K.mode.uri)],
   };
 
   // Include per-move signatures if provided (tournament mode or user opt-in)

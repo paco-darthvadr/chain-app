@@ -120,7 +120,7 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
   };
 
   const playerVerusId = (() => {
-    const player = currentPlayer === 'white' ? game?.whitePlayer : game?.blackPlayer;
+    const player = currentPlayer === 'white' ? game?.player1 : game?.player2;
     return player?.displayName ? `${player.displayName}@` : player?.verusId || '';
   })();
 
@@ -148,7 +148,7 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
         const checkRes = await fetch(`/api/game/${game.id}`);
         const checkData = await checkRes.json();
         const session = checkData.gameSession;
-        if (session?.whiteFinalSig && session?.blackFinalSig) {
+        if (session?.player1FinalSig && session?.player2FinalSig) {
           handleVerifyAndStore();
         } else {
           setShowcaseWaitingForOpponent(true);
@@ -170,7 +170,7 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
         const res = await fetch(`/api/game/${game.id}`);
         const data = await res.json();
         const session = data.gameSession;
-        if (session?.whiteFinalSig && session?.blackFinalSig) {
+        if (session?.player1FinalSig && session?.player2FinalSig) {
           clearInterval(interval);
           setShowcaseWaitingForOpponent(false);
           handleVerifyAndStore();
@@ -200,11 +200,11 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
         <div className="text-left text-sm space-y-2 bg-muted p-3 rounded-md">
           <div className="flex justify-between">
             <span className="text-muted-foreground">White:</span>
-            <span className="font-medium">{game?.whitePlayer?.displayName || game?.whitePlayer?.verusId || '?'}</span>
+            <span className="font-medium">{game?.player1?.displayName || game?.player1?.verusId || '?'}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Black:</span>
-            <span className="font-medium">{game?.blackPlayer?.displayName || game?.blackPlayer?.verusId || '?'}</span>
+            <span className="font-medium">{game?.player2?.displayName || game?.player2?.verusId || '?'}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Moves:</span>
@@ -247,9 +247,9 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
             {/* Game summary — what you're signing */}
             <div className="text-sm space-y-1 bg-muted p-3 rounded-md">
               <p className="text-muted-foreground font-medium mb-2">You are confirming:</p>
-              <div className="flex justify-between"><span className="text-muted-foreground">White:</span><span className="font-medium">{game?.whitePlayer?.displayName || game?.whitePlayer?.verusId || '?'}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Black:</span><span className="font-medium">{game?.blackPlayer?.displayName || game?.blackPlayer?.verusId || '?'}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Winner:</span><span className="font-medium">{game?.winner === game?.whitePlayerId ? (game?.whitePlayer?.displayName || 'White') : game?.winner === game?.blackPlayerId ? (game?.blackPlayer?.displayName || 'Black') : 'Draw'}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">White:</span><span className="font-medium">{game?.player1?.displayName || game?.player1?.verusId || '?'}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Black:</span><span className="font-medium">{game?.player2?.displayName || game?.player2?.verusId || '?'}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Winner:</span><span className="font-medium">{game?.winner === game?.player1Id ? (game?.player1?.displayName || 'White') : game?.winner === game?.player2Id ? (game?.player2?.displayName || 'Black') : 'Draw'}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">Moves:</span><span className="font-medium">{moveCount}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">Game Hash:</span><span className="font-mono text-xs break-all">{gameSession.gameHash.substring(0, 16)}...</span></div>
             </div>

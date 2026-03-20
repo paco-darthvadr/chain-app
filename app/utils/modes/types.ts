@@ -15,8 +15,8 @@ export interface SignedMovePackage {
 
 export interface GameEndResult {
   gameHash: string;
-  whiteFinalSig: string;
-  blackFinalSig: string;
+  player1FinalSig: string;   // was whiteFinalSig
+  player2FinalSig: string;   // was blackFinalSig
   verified: boolean;
 }
 

@@ -23,8 +23,8 @@ export async function getGame(gameId: string) {
         const game = await prisma.game.findUnique({
             where: { id: gameId },
             include: {
-                whitePlayer: true,
-                blackPlayer: true,
+                player1: true,
+                player2: true,
             },
         });
         return game;
@@ -38,7 +38,7 @@ export async function updateGame(gameId: string, boardState: any, moveInfo?: { m
     try {
         const game = await prisma.game.findUnique({
             where: { id: gameId },
-            include: { whitePlayer: true, blackPlayer: true },
+            include: { player1: true, player2: true },
         });
         if (!game) return null;
 
@@ -52,10 +52,10 @@ export async function updateGame(gameId: string, boardState: any, moveInfo?: { m
             // moveInfo.player may contain a Prisma cuid (from localStorage),
             // but the signed package needs the actual VerusID (e.g., "alice@").
             let playerVerusId = moveInfo.player;
-            if (game.whitePlayerId === moveInfo.player) {
-                playerVerusId = game.whitePlayer.verusId;
-            } else if (game.blackPlayerId === moveInfo.player) {
-                playerVerusId = game.blackPlayer.verusId;
+            if (game.player1Id === moveInfo.player) {
+                playerVerusId = game.player1.verusId;
+            } else if (game.player2Id === moveInfo.player) {
+                playerVerusId = game.player2.verusId;
             }
 
             signedPackage = await handler.onMove(game, {
@@ -91,8 +91,8 @@ export async function updateGame(gameId: string, boardState: any, moveInfo?: { m
                 updatedAt: new Date()
             },
             include: {
-                whitePlayer: true,
-                blackPlayer: true,
+                player1: true,
+                player2: true,
             },
         });
         revalidatePath(`/game/${gameId}`);
@@ -105,31 +105,31 @@ export async function updateGame(gameId: string, boardState: any, moveInfo?: { m
     }
 }
 
-export async function endGame(gameId: string, winningTeam: 'OUR' | 'OPPONENT' | 'DRAW') {
+export async function endGame(gameId: string, winningPlayer: 1 | 2 | 'DRAW') {
     try {
         // Fetch the game to get player IDs
         const existingGame = await prisma.game.findUnique({
             where: { id: gameId },
-            include: { whitePlayer: true, blackPlayer: true },
+            include: { player1: true, player2: true },
         });
 
         let winnerId: string | null = null;
-        if (winningTeam === 'OUR') {
-            winnerId = existingGame?.whitePlayerId ?? null;
-        } else if (winningTeam === 'OPPONENT') {
-            winnerId = existingGame?.blackPlayerId ?? null;
+        if (winningPlayer === 1) {
+            winnerId = existingGame?.player1Id ?? null;
+        } else if (winningPlayer === 2) {
+            winnerId = existingGame?.player2Id ?? null;
         } // DRAW => winnerId stays null
 
         const game = await prisma.game.update({
             where: { id: gameId },
-            data: { 
+            data: {
                 status: 'COMPLETED',
                 winner: winnerId,
                 updatedAt: new Date()
             },
             include: {
-                whitePlayer: true,
-                blackPlayer: true,
+                player1: true,
+                player2: true,
             },
         });
         revalidatePath(`/game/${gameId}`);
@@ -138,4 +138,4 @@ export async function endGame(gameId: string, winningTeam: 'OUR' | 'OPPONENT' | 
         console.error('Error ending game:', error);
         return null;
     }
-}  
+}

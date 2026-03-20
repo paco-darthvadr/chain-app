@@ -45,8 +45,8 @@ export async function waitForConfirmation(
  * Build the full SubID name from a short name like "game0017".
  * Returns e.g. "game0017.ChessGame@"
  */
-export function buildSubIdFullName(subIdName: string): string {
-  const parentName = process.env.CHESSGAME_IDENTITY_NAME || 'ChessGame@';
+export function buildSubIdFullName(subIdName: string, parentIdentityName?: string): string {
+  const parentName = parentIdentityName || process.env.CHESSGAME_IDENTITY_NAME || 'ChessGame@';
   return `${subIdName}.${parentName.replace('@', '')}@`;
 }
 

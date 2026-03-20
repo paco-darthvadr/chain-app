@@ -3,6 +3,7 @@ import { hashMovePackage, computeAnchorHash, verifyChain, computeGameHash, MoveP
 import { getMoveSigner } from './move-signer';
 import { createGameSubId, storeGameData, GameData } from './subid-storage';
 import { getPlayerName } from '@/app/utils/verus-rpc';
+import { getGameConfig } from '@/app/games/registry';
 import { prisma } from '@/lib/prisma';
 
 export const normalHandler: ModeHandler = {
@@ -29,9 +30,9 @@ export const normalHandler: ModeHandler = {
     let prevHash: string;
     if (moveNum === 1) {
       // Anchor hash for first move
-      const whitePlayer = game.whitePlayer?.verusId || game.whitePlayerId;
-      const blackPlayer = game.blackPlayer?.verusId || game.blackPlayerId;
-      prevHash = computeAnchorHash(subIdName, whitePlayer, blackPlayer);
+      const p1 = game.player1?.verusId || game.player1Id;
+      const p2 = game.player2?.verusId || game.player2Id;
+      prevHash = computeAnchorHash(subIdName, p1, p2);
     } else {
       // Hash of previous move package
       const prevMove = await prisma.move.findFirst({
@@ -47,9 +48,9 @@ export const normalHandler: ModeHandler = {
           orderBy: { createdAt: 'asc' },
         });
         if (allMoves.length === 0) {
-          const whitePlayer = game.whitePlayer?.verusId || game.whitePlayerId;
-          const blackPlayer = game.blackPlayer?.verusId || game.blackPlayerId;
-          prevHash = computeAnchorHash(subIdName, whitePlayer, blackPlayer);
+          const p1 = game.player1?.verusId || game.player1Id;
+          const p2 = game.player2?.verusId || game.player2Id;
+          prevHash = computeAnchorHash(subIdName, p1, p2);
         } else {
           const lastMove = allMoves[allMoves.length - 1];
           prevHash = hashMovePackage(lastMove.movePackage as MovePackageData);
@@ -82,7 +83,7 @@ export const normalHandler: ModeHandler = {
     // Load the full game with players
     const fullGame = await prisma.game.findUnique({
       where: { id: game.id },
-      include: { whitePlayer: true, blackPlayer: true, moves: { orderBy: { createdAt: 'asc' } } },
+      include: { player1: true, player2: true, moves: { orderBy: { createdAt: 'asc' } } },
     });
     if (!fullGame) {
       throw new Error(`Game not found: ${game.id}`);
@@ -99,8 +100,8 @@ export const normalHandler: ModeHandler = {
     // Verify the entire chain
     const verification = verifyChain(
       subIdName,
-      fullGame.whitePlayer.verusId,
-      fullGame.blackPlayer.verusId,
+      fullGame.player1.verusId,
+      fullGame.player2.verusId,
       packages,
     );
 
@@ -115,8 +116,8 @@ export const normalHandler: ModeHandler = {
       }
       return {
         gameHash: '',
-        whiteFinalSig: '',
-        blackFinalSig: '',
+        player1FinalSig: '',
+        player2FinalSig: '',
         verified: false,
       };
     }
@@ -125,8 +126,8 @@ export const normalHandler: ModeHandler = {
     const gameHash = computeGameHash(packages);
 
     // Sign on behalf of both players (Phase 1: same server key)
-    const whiteFinalSig = signer.sign(gameHash);
-    const blackFinalSig = signer.sign(gameHash);
+    const player1FinalSig = signer.sign(gameHash);
+    const player2FinalSig = signer.sign(gameHash);
 
     // Update GameSession
     if (session) {
@@ -134,8 +135,8 @@ export const normalHandler: ModeHandler = {
         where: { gameId: game.id },
         data: {
           gameHash,
-          whiteFinalSig,
-          blackFinalSig,
+          player1FinalSig,
+          player2FinalSig,
           verifiedAt: new Date(),
         },
       });
@@ -143,8 +144,8 @@ export const normalHandler: ModeHandler = {
 
     return {
       gameHash,
-      whiteFinalSig,
-      blackFinalSig,
+      player1FinalSig,
+      player2FinalSig,
       verified: true,
     };
   },
@@ -153,7 +154,7 @@ export const normalHandler: ModeHandler = {
     // Load full game data
     const fullGame = await prisma.game.findUnique({
       where: { id: game.id },
-      include: { whitePlayer: true, blackPlayer: true, moves: { orderBy: { createdAt: 'asc' } } },
+      include: { player1: true, player2: true, moves: { orderBy: { createdAt: 'asc' } } },
     });
     if (!fullGame) {
       return { success: false, error: 'Game not found' };
@@ -169,11 +170,14 @@ export const normalHandler: ModeHandler = {
 
     const subIdName = session.subIdName || game.id;
 
+    // Load game config for VDXF keys and parent identity
+    const config = getGameConfig(fullGame.gameType || 'chess');
+
     try {
       // Step 1: Create SubID (skips if already exists)
       let subIdAddress = session.subIdAddress;
       if (!subIdAddress) {
-        const subIdResult = await createGameSubId(subIdName);
+        const subIdResult = await createGameSubId(subIdName, config.parentIdentityAddress);
         subIdAddress = subIdResult.address;
         await prisma.gameSession.update({
           where: { gameId: game.id },
@@ -194,32 +198,32 @@ export const normalHandler: ModeHandler = {
       // Resolve winner from Prisma cuid to VerusID
       let winnerVerusId = '';
       if (fullGame.winner) {
-        if (fullGame.winner === fullGame.whitePlayerId) {
-          winnerVerusId = fullGame.whitePlayer.verusId;
-        } else if (fullGame.winner === fullGame.blackPlayerId) {
-          winnerVerusId = fullGame.blackPlayer.verusId;
+        if (fullGame.winner === fullGame.player1Id) {
+          winnerVerusId = fullGame.player1.verusId;
+        } else if (fullGame.winner === fullGame.player2Id) {
+          winnerVerusId = fullGame.player2.verusId;
         } else {
           winnerVerusId = fullGame.winner; // Already a verusId or 'DRAW'
         }
       }
 
-      const whiteName = getPlayerName(fullGame.whitePlayer);
-      const blackName = getPlayerName(fullGame.blackPlayer);
+      const player1Name = getPlayerName(fullGame.player1);
+      const player2Name = getPlayerName(fullGame.player2);
 
       let winnerDisplayName = '';
       if (winnerVerusId) {
-        if (winnerVerusId === fullGame.whitePlayer.verusId) {
-          winnerDisplayName = whiteName;
-        } else if (winnerVerusId === fullGame.blackPlayer.verusId) {
-          winnerDisplayName = blackName;
+        if (winnerVerusId === fullGame.player1.verusId) {
+          winnerDisplayName = player1Name;
+        } else if (winnerVerusId === fullGame.player2.verusId) {
+          winnerDisplayName = player2Name;
         } else {
           winnerDisplayName = winnerVerusId; // 'DRAW' or already a name
         }
       }
 
       const gameData: GameData = {
-        white: whiteName,
-        black: blackName,
+        player1Name,
+        player2Name,
         winner: winnerDisplayName,
         result: fullGame.status === 'COMPLETED' ? 'checkmate' : fullGame.status.toLowerCase(),
         moves,
@@ -227,13 +231,13 @@ export const normalHandler: ModeHandler = {
         duration,
         startedAt: Math.floor(fullGame.createdAt.getTime() / 1000),
         gameHash: session.gameHash,
-        whiteSig: session.whiteFinalSig || '',
-        blackSig: session.blackFinalSig || '',
+        player1Sig: session.player1FinalSig || '',
+        player2Sig: session.player2FinalSig || '',
         mode: includeMovesSigs ? 'tournament' : ((fullGame as any).mode || 'normal'),
         moveSigs,
       };
 
-      const { txid } = await storeGameData(subIdName, gameData);
+      const { txid } = await storeGameData(subIdName, gameData, config.vdxfKeys, config.parentIdentityName);
 
       // Update session with storage info
       await prisma.gameSession.update({

@@ -5,8 +5,8 @@ import { rpcCall, getPlayerName } from '@/app/utils/verus-rpc';
 
 function buildCommitment(game: any): OpeningCommitment {
   return {
-    white: getPlayerName(game.whitePlayer),
-    black: getPlayerName(game.blackPlayer),
+    white: getPlayerName(game.player1),
+    black: getPlayerName(game.player2),
     gameNumber: game.gameSession?.subIdName || game.id,
     startedAt: game.createdAt.toISOString(),
   };
@@ -17,7 +17,7 @@ export async function GET(request: Request, { params }: { params: { gameId: stri
   try {
     const game = await prisma.game.findUnique({
       where: { id: params.gameId },
-      include: { whitePlayer: true, blackPlayer: true, gameSession: true },
+      include: { player1: true, player2: true, gameSession: true },
     });
 
     if (!game || (game.mode !== 'showcase' && game.mode !== 'normal')) {
@@ -30,8 +30,8 @@ export async function GET(request: Request, { params }: { params: { gameId: stri
     return NextResponse.json({
       message,
       commitment,
-      whiteHasSigned: !!game.gameSession?.whiteOpeningSig,
-      blackHasSigned: !!game.gameSession?.blackOpeningSig,
+      player1HasSigned: !!game.gameSession?.player1OpeningSig,
+      player2HasSigned: !!game.gameSession?.player2OpeningSig,
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -50,7 +50,7 @@ export async function POST(request: Request, { params }: { params: { gameId: str
 
     const game = await prisma.game.findUnique({
       where: { id: params.gameId },
-      include: { whitePlayer: true, blackPlayer: true, gameSession: true },
+      include: { player1: true, player2: true, gameSession: true },
     });
 
     if (!game) return NextResponse.json({ error: 'Game not found' }, { status: 404 });
@@ -59,12 +59,12 @@ export async function POST(request: Request, { params }: { params: { gameId: str
     const session = game.gameSession;
     if (!session) return NextResponse.json({ error: 'No game session' }, { status: 400 });
 
-    const playerUser = player === 'white' ? game.whitePlayer : game.blackPlayer;
+    const playerUser = player === 'white' ? game.player1 : game.player2;
     const playerName = getPlayerName(playerUser);
 
     // Auth check: verify the caller matches the player they claim to be (fix #4/#7)
     const callerUserId = request.headers.get('x-user-id') || '';
-    const expectedPlayerId = player === 'white' ? game.whitePlayerId : game.blackPlayerId;
+    const expectedPlayerId = player === 'white' ? game.player1Id : game.player2Id;
     // If we have a caller ID, enforce it matches
     if (callerUserId && callerUserId !== expectedPlayerId) {
       return NextResponse.json({ error: 'You can only sign as your own player' }, { status: 403 });
@@ -78,7 +78,7 @@ export async function POST(request: Request, { params }: { params: { gameId: str
       }
 
       // Store in dedicated opening sig columns (fix #1)
-      const sigField = player === 'white' ? 'whiteOpeningSig' : 'blackOpeningSig';
+      const sigField = player === 'white' ? 'player1OpeningSig' : 'player2OpeningSig';
       await prisma.gameSession.update({
         where: { gameId: params.gameId },
         data: { [sigField]: signature },
@@ -87,7 +87,7 @@ export async function POST(request: Request, { params }: { params: { gameId: str
       const updatedSession = await prisma.gameSession.findUnique({
         where: { gameId: params.gameId },
       });
-      const bothSigned = !!updatedSession?.whiteOpeningSig && !!updatedSession?.blackOpeningSig;
+      const bothSigned = !!updatedSession?.player1OpeningSig && !!updatedSession?.player2OpeningSig;
 
       return NextResponse.json({
         success: true,
@@ -108,7 +108,7 @@ export async function POST(request: Request, { params }: { params: { gameId: str
       }
 
       // Store in closing sig columns — separate from opening sigs (fix #1)
-      const sigField = player === 'white' ? 'whiteFinalSig' : 'blackFinalSig';
+      const sigField = player === 'white' ? 'player1FinalSig' : 'player2FinalSig';
       await prisma.gameSession.update({
         where: { gameId: params.gameId },
         data: { [sigField]: signature },

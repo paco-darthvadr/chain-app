@@ -29,14 +29,14 @@ export async function getGamesForUser(userId: string) {
         const games = await prisma.game.findMany({
             where: {
                 OR: [
-                    { whitePlayerId: userId },
-                    { blackPlayerId: userId },
+                    { player1Id: userId },
+                    { player2Id: userId },
                 ],
                 status: 'COMPLETED', // Only show active games
             },
             include: {
-                whitePlayer: true,
-                blackPlayer: true,
+                player1: true,
+                player2: true,
             },
             orderBy: {
                 updatedAt: 'desc',
@@ -52,12 +52,12 @@ export async function getGamesForUser(userId: string) {
 export async function deleteUser(userId: string) {
     try {
         await prisma.$transaction(async (tx) => {
-            // Delete all games where the user is either the white or black player
+            // Delete all games where the user is either player
             await tx.game.deleteMany({
                 where: {
                     OR: [
-                        { whitePlayerId: userId },
-                        { blackPlayerId: userId },
+                        { player1Id: userId },
+                        { player2Id: userId },
                     ],
                 },
             });
@@ -74,4 +74,4 @@ export async function deleteUser(userId: string) {
         console.error('Error deleting user:', error);
         return { success: false, error: 'Failed to delete user.' };
     }
-} 
+}

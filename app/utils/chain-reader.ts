@@ -1,14 +1,15 @@
-import { CHESS_VDXF_KEYS } from './modes/normal/vdxf-keys';
+import { getGameConfig } from '@/app/games/registry';
 import { DD_KEY } from '@/app/utils/data-descriptor';
 import { rpcCall, buildSubIdFullName } from './verus-rpc';
 
 /**
- * Build a reverse lookup: vdxfid → field name
+ * Build a reverse lookup: vdxfid -> field name
  */
-function buildKeyLookup(): Record<string, string> {
+function buildKeyLookup(gameType: string = 'chess'): Record<string, string> {
+  const config = getGameConfig(gameType);
   const lookup: Record<string, string> = {};
-  for (const [field, def] of Object.entries(CHESS_VDXF_KEYS)) {
-    lookup[def.vdxfid] = field;
+  for (const [field, def] of Object.entries(config.vdxfKeys)) {
+    lookup[(def as { vdxfid: string }).vdxfid] = field;
   }
   return lookup;
 }
@@ -44,11 +45,12 @@ export interface OnChainGame {
   identityAddress: string;
   blockheight: number;
   txid: string;
+  gameType: string;
   version: string;
-  white: string;
-  black: string;
-  whiteName: string | null;
-  blackName: string | null;
+  player1: string;
+  player2: string;
+  player1Name: string | null;
+  player2Name: string | null;
   winner: string;
   winnerName: string | null;
   result: string;
@@ -57,13 +59,13 @@ export interface OnChainGame {
   duration: number;
   startedAt: number;
   gameHash: string;
-  whiteSig: string;
-  blackSig: string;
+  player1Sig: string;
+  player2Sig: string;
   mode: string;
   moveSigs: string[] | null;
   // Showcase mode fields
-  whiteOpenSig: string | null;
-  blackOpenSig: string | null;
+  player1OpenSig: string | null;
+  player2OpenSig: string | null;
   status: string | null;
 }
 
@@ -85,8 +87,9 @@ async function resolveIdentityName(iAddress: string): Promise<string | null> {
 /**
  * Fetch and parse a game's on-chain data from its SubID.
  */
-export async function readGameFromChain(subIdName: string): Promise<OnChainGame | null> {
-  const fullName = buildSubIdFullName(subIdName);
+export async function readGameFromChain(subIdName: string, gameType: string = 'chess'): Promise<OnChainGame | null> {
+  const config = getGameConfig(gameType);
+  const fullName = buildSubIdFullName(subIdName, config.parentIdentityName);
 
   let identityResult;
   try {
@@ -99,7 +102,7 @@ export async function readGameFromChain(subIdName: string): Promise<OnChainGame 
   if (!identity?.contentmultimap) return null;
 
   const cmm = identity.contentmultimap;
-  const keyLookup = buildKeyLookup();
+  const keyLookup = buildKeyLookup(gameType);
 
   // Parse all fields from contentmultimap
   const fields: Record<string, string> = {};
@@ -110,7 +113,7 @@ export async function readGameFromChain(subIdName: string): Promise<OnChainGame 
     fields[fieldName] = value;
   }
 
-  // If no chess fields found, SubID exists but has no game data
+  // If no game fields found, SubID exists but has no game data
   if (!fields.version) return null;
 
   // Parse structured fields
@@ -131,9 +134,9 @@ export async function readGameFromChain(subIdName: string): Promise<OnChainGame 
   }
 
   // Resolve i-addresses to friendly names
-  const [whiteName, blackName, winnerName] = await Promise.all([
-    fields.white ? resolveIdentityName(fields.white) : null,
-    fields.black ? resolveIdentityName(fields.black) : null,
+  const [player1Name, player2Name, winnerName] = await Promise.all([
+    fields.player1 ? resolveIdentityName(fields.player1) : null,
+    fields.player2 ? resolveIdentityName(fields.player2) : null,
     fields.winner ? resolveIdentityName(fields.winner) : null,
   ]);
 
@@ -143,11 +146,12 @@ export async function readGameFromChain(subIdName: string): Promise<OnChainGame 
     identityAddress: identity.identityaddress,
     blockheight: identityResult.blockheight,
     txid: identityResult.txid,
+    gameType,
     version: fields.version || '',
-    white: fields.white || '',
-    black: fields.black || '',
-    whiteName,
-    blackName,
+    player1: fields.player1 || '',
+    player2: fields.player2 || '',
+    player1Name,
+    player2Name,
     winner: fields.winner || '',
     winnerName,
     result: fields.result || '',
@@ -156,28 +160,30 @@ export async function readGameFromChain(subIdName: string): Promise<OnChainGame 
     duration: parseInt(fields.duration || '0', 10),
     startedAt: parseInt(fields.startedat || '0', 10),
     gameHash: fields.gamehash || '',
-    whiteSig: fields.whitesig || '',
-    blackSig: fields.blacksig || '',
+    player1Sig: fields.player1sig || '',
+    player2Sig: fields.player2sig || '',
     mode: fields.mode || 'normal',
     moveSigs,
     // Showcase mode fields
-    whiteOpenSig: fields.whiteopensig || null,
-    blackOpenSig: fields.blackopensig || null,
+    player1OpenSig: fields.player1opensig || null,
+    player2OpenSig: fields.player2opensig || null,
     status: fields.status || null,
   };
 }
 
 /**
- * Discover all game SubIDs under ChessGame@ by iterating the counter.
+ * Discover all game SubIDs under the parent identity by iterating the counter.
  * Returns games that exist on chain and have data stored.
  */
-export async function listGamesFromChain(): Promise<OnChainGame[]> {
+export async function listGamesFromChain(gameType: string = 'chess'): Promise<OnChainGame[]> {
+  const config = getGameConfig(gameType);
+
   // Find the highest game number by checking the DB counter
   // Fallback: probe up to a reasonable max
   let maxGame = 20;
   try {
     const { prisma } = await import('@/lib/prisma');
-    const counter = await prisma.gameCounter.findUnique({ where: { id: 'singleton' } });
+    const counter = await prisma.gameCounter.findUnique({ where: { id: gameType } });
     if (counter) maxGame = counter.nextGame;
   } catch {
     // DB not available, probe manually
@@ -187,9 +193,9 @@ export async function listGamesFromChain(): Promise<OnChainGame[]> {
   const promises: Promise<void>[] = [];
 
   for (let i = 1; i < maxGame; i++) {
-    const subIdName = `game${String(i).padStart(4, '0')}`;
+    const subIdName = `${config.subIdPrefix}${String(i).padStart(4, '0')}`;
     promises.push(
-      readGameFromChain(subIdName).then(game => {
+      readGameFromChain(subIdName, gameType).then(game => {
         if (game) games.push(game);
       }).catch(() => {
         // SubID doesn't exist or has no data
@@ -201,8 +207,8 @@ export async function listGamesFromChain(): Promise<OnChainGame[]> {
 
   // Sort by game number
   games.sort((a, b) => {
-    const numA = parseInt(a.subIdName.replace('game', ''), 10);
-    const numB = parseInt(b.subIdName.replace('game', ''), 10);
+    const numA = parseInt(a.subIdName.replace(/\D/g, ''), 10);
+    const numB = parseInt(b.subIdName.replace(/\D/g, ''), 10);
     return numA - numB;
   });
 

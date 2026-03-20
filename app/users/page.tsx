@@ -219,8 +219,8 @@ function UsersPage() {
                         {userGames.length > 0 ? (
                             <div className="flex flex-col gap-2">
                                 {userGames.map(game => {
-                                    const opponent = game.whitePlayerId === currentUserId ? game.blackPlayer : game.whitePlayer;
-                                    const isWhite = game.whitePlayerId === currentUserId;
+                                    const opponent = game.player1Id === currentUserId ? game.player2 : game.player1;
+                                    const isWhite = game.player1Id === currentUserId;
                                     return (
                                         <div key={game.id} className="flex items-center justify-between p-3 bg-card rounded-lg border">
                                             <div className="flex items-center gap-3">

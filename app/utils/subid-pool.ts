@@ -14,17 +14,18 @@ export function isPoolEnabled(): boolean {
 // 2. getPoolStatus
 // ---------------------------------------------------------------------------
 
-export async function getPoolStatus(): Promise<{
+export async function getPoolStatus(gameType?: string): Promise<{
   ready: number;
   registering: number;
   failed: number;
   used: number;
 }> {
+  const where = gameType ? { gameType } : {};
   const [ready, registering, failed, used] = await Promise.all([
-    prisma.subIdPool.count({ where: { status: 'ready' } }),
-    prisma.subIdPool.count({ where: { status: 'registering' } }),
-    prisma.subIdPool.count({ where: { status: 'failed' } }),
-    prisma.subIdPool.count({ where: { status: 'used' } }),
+    prisma.subIdPool.count({ where: { ...where, status: 'ready' } }),
+    prisma.subIdPool.count({ where: { ...where, status: 'registering' } }),
+    prisma.subIdPool.count({ where: { ...where, status: 'failed' } }),
+    prisma.subIdPool.count({ where: { ...where, status: 'used' } }),
   ]);
   return { ready, registering, failed, used };
 }
@@ -33,7 +34,7 @@ export async function getPoolStatus(): Promise<{
 // 3. popReadySubId
 // ---------------------------------------------------------------------------
 
-export async function popReadySubId(): Promise<{
+export async function popReadySubId(gameType: string = 'chess'): Promise<{
   subIdName: string;
   gameNumber: number;
   address: string;
@@ -42,7 +43,7 @@ export async function popReadySubId(): Promise<{
 
   return prisma.$transaction(async (tx) => {
     const ready = await tx.subIdPool.findFirst({
-      where: { status: 'ready' },
+      where: { status: 'ready', gameType },
       orderBy: { gameNumber: 'asc' },
     });
     if (!ready || !ready.address) return null;
@@ -64,16 +65,20 @@ export async function popReadySubId(): Promise<{
 // 4. ensurePoolSize
 // ---------------------------------------------------------------------------
 
-export async function ensurePoolSize(minSize: number = 5): Promise<void> {
+export async function ensurePoolSize(
+  minSize: number = 5,
+  gameType: string = 'chess',
+  parentIdentityAddress?: string
+): Promise<void> {
   if (!isPoolEnabled()) return;
 
   const failed = await prisma.subIdPool.findMany({
-    where: { status: 'failed' },
+    where: { status: 'failed', gameType },
     orderBy: { gameNumber: 'asc' },
   });
 
   const available = await prisma.subIdPool.count({
-    where: { status: { in: ['ready', 'registering'] } },
+    where: { status: { in: ['ready', 'registering'] }, gameType },
   });
 
   const newNeeded = Math.max(0, minSize - available - failed.length);
@@ -88,14 +93,14 @@ export async function ensurePoolSize(minSize: number = 5): Promise<void> {
   (async () => {
     for (const record of failed) {
       try {
-        await registerSubId(record);
+        await registerSubId(record, gameType, parentIdentityAddress);
       } catch (err: any) {
         console.error(`[SubID Pool] Retry failed for ${record.subIdName}:`, err.message);
       }
     }
     for (let i = 0; i < newNeeded; i++) {
       try {
-        await registerSubId();
+        await registerSubId(undefined, gameType, parentIdentityAddress);
       } catch (err: any) {
         console.error('[SubID Pool] New registration failed:', err.message);
       }
@@ -114,7 +119,11 @@ export async function ensurePoolSize(minSize: number = 5): Promise<void> {
  * On failure, the pool record is marked 'failed' (never deleted) so it can
  * be retried later without burning the game number.
  */
-async function registerSubId(existingRecord?: any): Promise<void> {
+async function registerSubId(
+  existingRecord?: any,
+  gameType: string = 'chess',
+  parentIdentityAddress?: string
+): Promise<void> {
   let poolRecord: any;
   let subIdName: string;
 
@@ -127,14 +136,14 @@ async function registerSubId(existingRecord?: any): Promise<void> {
     });
     console.log(`[SubID Pool] Retrying registration for ${subIdName}...`);
   } else {
-    const counter = await nextGameNumber();
+    const counter = await nextGameNumber(gameType);
     subIdName = counter.subIdName;
     poolRecord = await prisma.subIdPool.create({
-      data: { subIdName, gameNumber: counter.gameNumber, status: 'registering' },
+      data: { subIdName, gameNumber: counter.gameNumber, gameType, status: 'registering' },
     });
   }
 
-  const parentAddress = process.env.CHESSGAME_IDENTITY_ADDRESS;
+  const parentAddress = parentIdentityAddress || process.env.CHESSGAME_IDENTITY_ADDRESS;
   const fullName = buildSubIdFullName(subIdName);
 
   try {
@@ -232,6 +241,9 @@ async function registerSubId(existingRecord?: any): Promise<void> {
   }
 }
 
-export async function registerOneSubId(): Promise<void> {
-  return registerSubId();
+export async function registerOneSubId(
+  gameType: string = 'chess',
+  parentIdentityAddress?: string
+): Promise<void> {
+  return registerSubId(undefined, gameType, parentIdentityAddress);
 }

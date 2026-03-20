@@ -31,9 +31,9 @@ export default function ShowcaseSigningPrompt({
       try {
         const res = await fetch(`/api/game/${gameId}/showcase-sign`);
         const data = await res.json();
-        const mySide = player === 'white' ? 'whiteHasSigned' : 'blackHasSigned';
+        const mySide = player === 'white' ? 'player1HasSigned' : 'player2HasSigned';
         if (data[mySide]) {
-          if (data.whiteHasSigned && data.blackHasSigned) {
+          if (data.player1HasSigned && data.player2HasSigned) {
             onBothSigned?.();
           } else {
             setWaitingForOpponent(true);
@@ -86,7 +86,7 @@ export default function ShowcaseSigningPrompt({
       try {
         const res = await fetch(`/api/game/${gameId}/showcase-sign`);
         const data = await res.json();
-        if (data.whiteHasSigned && data.blackHasSigned) {
+        if (data.player1HasSigned && data.player2HasSigned) {
           clearInterval(interval);
           onBothSigned?.();
         }

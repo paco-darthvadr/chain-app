@@ -11,8 +11,8 @@ export async function GET(request: Request, { params }: { params: { gameId: stri
                 id: params.gameId,
             },
             include: {
-                whitePlayer: true,
-                blackPlayer: true,
+                player1: true,
+                player2: true,
                 gameSession: true,
             },
         });
@@ -47,8 +47,8 @@ export async function PATCH(request: Request, { params }: { params: { gameId: st
             },
             data: dataToUpdate,
             include: {
-                whitePlayer: true,
-                blackPlayer: true,
+                player1: true,
+                player2: true,
             }
         });
         return NextResponse.json(updatedGame);

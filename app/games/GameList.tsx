@@ -12,11 +12,12 @@ interface OnChainGame {
   identityAddress: string;
   blockheight: number;
   txid: string;
+  gameType: string;
   version: string;
-  white: string;
-  black: string;
-  whiteName: string | null;
-  blackName: string | null;
+  player1: string;
+  player2: string;
+  player1Name: string | null;
+  player2Name: string | null;
   winner: string;
   winnerName: string | null;
   result: string;
@@ -25,8 +26,8 @@ interface OnChainGame {
   duration: number;
   startedAt: number;
   gameHash: string;
-  whiteSig: string;
-  blackSig: string;
+  player1Sig: string;
+  player2Sig: string;
   mode: string;
   moveSigs: string[] | null;
 }
@@ -87,8 +88,8 @@ function MoveList({ moves }: { moves: string[] }) {
 function OnChainGameCard({ game }: { game: OnChainGame }) {
   const [showDetails, setShowDetails] = useState(false);
 
-  const whiteDisplay = game.white;
-  const blackDisplay = game.black;
+  const whiteDisplay = game.player1;
+  const blackDisplay = game.player2;
   const winnerDisplay = game.winner;
 
   return (
@@ -152,11 +153,11 @@ function OnChainGameCard({ game }: { game: OnChainGame }) {
             </div>
             <div>
               <span className="text-xs text-muted-foreground">White Sig:</span>
-              <p className="font-mono text-xs break-all">{game.whiteSig}</p>
+              <p className="font-mono text-xs break-all">{game.player1Sig}</p>
             </div>
             <div>
-              <span className="text-xs text-muted-foreground">Black Sig:</span>
-              <p className="font-mono text-xs break-all">{game.blackSig}</p>
+              <span className="text-xs text-muted-foreground">Player 2 Sig:</span>
+              <p className="font-mono text-xs break-all">{game.player2Sig}</p>
             </div>
             <div>
               <span className="text-xs text-muted-foreground">SubID:</span>
@@ -301,16 +302,16 @@ export default function GameList({ initialGames }: { initialGames: any[] }) {
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {games.map((game: any) => {
-                const whiteName = game.whitePlayer?.displayName
-                  ? `${game.whitePlayer.displayName}@`
-                  : game.whitePlayer?.verusId || 'White';
-                const blackName = game.blackPlayer?.displayName
-                  ? `${game.blackPlayer.displayName}@`
-                  : game.blackPlayer?.verusId || 'Black';
+                const whiteName = game.player1?.displayName
+                  ? `${game.player1.displayName}@`
+                  : game.player1?.verusId || 'Player 1';
+                const blackName = game.player2?.displayName
+                  ? `${game.player2.displayName}@`
+                  : game.player2?.verusId || 'Player 2';
                 const subIdName = game.gameSession?.subIdName;
                 const isStored = !!game.blockchainTxId && game.blockchainTxId !== 'PROCESSING';
                 const isCompleted = game.status === 'COMPLETED';
-                const hasSigs = !!(game.gameSession?.whiteFinalSig && game.gameSession?.blackFinalSig);
+                const hasSigs = !!(game.gameSession?.player1FinalSig && game.gameSession?.player2FinalSig);
 
                 return (
                   <Card key={game.id} className="hover:shadow-lg transition-shadow">
@@ -347,7 +348,7 @@ export default function GameList({ initialGames }: { initialGames: any[] }) {
                           <div className="flex justify-between text-sm">
                             <span className="text-muted-foreground">Winner:</span>
                             <span className="font-medium text-green-500">
-                              {game.winner === game.whitePlayerId ? whiteName : game.winner === game.blackPlayerId ? blackName : game.winner}
+                              {game.winner === game.player1Id ? whiteName : game.winner === game.player2Id ? blackName : game.winner}
                             </span>
                           </div>
                         )}

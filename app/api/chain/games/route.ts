@@ -3,13 +3,15 @@ import { listGamesFromChain, readGameFromChain } from '@/app/utils/chain-reader'
 
 // GET /api/chain/games — List all games stored on-chain
 // Optional query: ?game=game0008 to fetch a single game
+// Optional query: ?gameType=chess to filter by game type (default: chess)
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const singleGame = searchParams.get('game');
+    const gameType = searchParams.get('gameType') || 'chess';
 
     if (singleGame) {
-      const game = await readGameFromChain(singleGame);
+      const game = await readGameFromChain(singleGame, gameType);
       if (!game) {
         return NextResponse.json(
           { error: `${singleGame} not found on chain or has no game data` },
@@ -19,7 +21,7 @@ export async function GET(request: Request) {
       return NextResponse.json(game);
     }
 
-    const games = await listGamesFromChain();
+    const games = await listGamesFromChain(gameType);
     return NextResponse.json({ games, count: games.length });
   } catch (error: any) {
     console.error('[chain/games] Error:', error);

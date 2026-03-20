@@ -11,7 +11,7 @@ export async function POST(request: Request, { params }: { params: { gameId: str
     // Check game mode — Normal mode uses its own flow outside the transaction
     const gameForMode = await prisma.game.findUnique({
         where: { id: params.gameId },
-        include: { whitePlayer: true, blackPlayer: true },
+        include: { player1: true, player2: true },
     });
     if (!gameForMode) {
         return NextResponse.json({ error: 'Game not found' }, { status: 404 });
@@ -80,8 +80,8 @@ export async function POST(request: Request, { params }: { params: { gameId: str
             const game = await tx.game.findUnique({
                 where: { id: params.gameId },
                 include: {
-                    whitePlayer: true,
-                    blackPlayer: true,
+                    player1: true,
+                    player2: true,
                 },
             });
 
@@ -156,8 +156,8 @@ export async function POST(request: Request, { params }: { params: { gameId: str
             console.log('=== SANITIZING CHESS GAME DATA ===');
             
             const safeGameId = String(game.id || "");
-            const safeWhite = String(game.whitePlayer.verusId || game.whitePlayer.displayName || "");
-            const safeBlack = String(game.blackPlayer.verusId || game.blackPlayer.displayName || "");
+            const safeWhite = String(game.player1.verusId || game.player1.displayName || "");
+            const safeBlack = String(game.player2.verusId || game.player2.displayName || "");
             const safeWinner = game.winner ? String(game.winner) : "";
             const safeStatus = (game.status || "").toLowerCase() === "completed" ? "completed" : "active";
             // Convert move objects to 4-character strings if needed
@@ -174,8 +174,8 @@ export async function POST(request: Request, { params }: { params: { gameId: str
 
             console.log('Original data:');
             console.log('  gameId:', game.id);
-            console.log('  white:', game.whitePlayer.verusId || game.whitePlayer.displayName);
-            console.log('  black:', game.blackPlayer.verusId || game.blackPlayer.displayName);
+            console.log('  white:', game.player1.verusId || game.player1.displayName);
+            console.log('  black:', game.player2.verusId || game.player2.displayName);
             console.log('  winner:', game.winner);
             console.log('  status:', game.status);
             console.log('  moves:', moves);
@@ -218,8 +218,8 @@ export async function POST(request: Request, { params }: { params: { gameId: str
             // Create sanitized game object for blockchain storage
             const sanitizedGame = {
                 id: safeGameId,
-                whitePlayer: { verusId: safeWhite, displayName: safeWhite },
-                blackPlayer: { verusId: safeBlack, displayName: safeBlack },
+                player1: { verusId: safeWhite, displayName: safeWhite },
+                player2: { verusId: safeBlack, displayName: safeBlack },
                 winner: safeWinner,
                 status: safeStatus,
                 timestamp: safeTimestamp

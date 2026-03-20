@@ -4,6 +4,7 @@ import { getMoveSigner } from '../normal/move-signer';
 import { updateGameOnChain, LiveGameState } from './live-storage';
 import { createGameSubId } from '../normal/subid-storage';
 import { getPlayerName } from '@/app/utils/verus-rpc';
+import { getGameConfig } from '@/app/games/registry';
 import { prisma } from '@/lib/prisma';
 
 export const showcaseHandler: ModeHandler = {
@@ -21,9 +22,9 @@ export const showcaseHandler: ModeHandler = {
 
     let prevHash: string;
     if (moveNum === 1) {
-      const whitePlayer = game.whitePlayer?.verusId || game.whitePlayerId;
-      const blackPlayer = game.blackPlayer?.verusId || game.blackPlayerId;
-      prevHash = computeAnchorHash(subIdName, whitePlayer, blackPlayer);
+      const p1 = game.player1?.verusId || game.player1Id;
+      const p2 = game.player2?.verusId || game.player2Id;
+      prevHash = computeAnchorHash(subIdName, p1, p2);
     } else {
       const prevMove = await prisma.move.findFirst({
         where: { gameId: game.id },
@@ -32,9 +33,9 @@ export const showcaseHandler: ModeHandler = {
       if (prevMove?.movePackage) {
         prevHash = hashMovePackage(prevMove.movePackage as MovePackageData);
       } else {
-        const whitePlayer = game.whitePlayer?.verusId || game.whitePlayerId;
-        const blackPlayer = game.blackPlayer?.verusId || game.blackPlayerId;
-        prevHash = computeAnchorHash(subIdName, whitePlayer, blackPlayer);
+        const p1 = game.player1?.verusId || game.player1Id;
+        const p2 = game.player2?.verusId || game.player2Id;
+        prevHash = computeAnchorHash(subIdName, p1, p2);
       }
     }
 
@@ -58,22 +59,22 @@ export const showcaseHandler: ModeHandler = {
 
     const fullGame = await prisma.game.findUnique({
       where: { id: game.id },
-      include: { whitePlayer: true, blackPlayer: true },
+      include: { player1: true, player2: true },
     });
 
-    const whiteName = fullGame?.whitePlayer ? getPlayerName(fullGame.whitePlayer) : '';
-    const blackName = fullGame?.blackPlayer ? getPlayerName(fullGame.blackPlayer) : '';
+    const player1Name = fullGame?.player1 ? getPlayerName(fullGame.player1) : '';
+    const player2Name = fullGame?.player2 ? getPlayerName(fullGame.player2) : '';
 
     const liveState: LiveGameState = {
-      white: whiteName,
-      black: blackName,
+      white: player1Name,
+      black: player2Name,
       moves: allMoveStrings,
       moveCount: allMoveStrings.length,
       startedAt: Math.floor((fullGame?.createdAt?.getTime() || Date.now()) / 1000),
       mode: 'showcase',
       status: 'in_progress',
-      whiteOpenSig: session.whiteOpeningSig || '',
-      blackOpenSig: session.blackOpeningSig || '',
+      whiteOpenSig: session.player1OpeningSig || '',
+      blackOpenSig: session.player2OpeningSig || '',
     };
 
     // Fire chain update in the background — don't block the move/socket relay
@@ -104,7 +105,7 @@ export const showcaseHandler: ModeHandler = {
 
     const fullGame = await prisma.game.findUnique({
       where: { id: game.id },
-      include: { whitePlayer: true, blackPlayer: true, moves: { orderBy: { createdAt: 'asc' } } },
+      include: { player1: true, player2: true, moves: { orderBy: { createdAt: 'asc' } } },
     });
     if (!fullGame) throw new Error(`Game not found: ${game.id}`);
 
@@ -117,20 +118,20 @@ export const showcaseHandler: ModeHandler = {
 
     const verification = verifyChain(
       subIdName,
-      fullGame.whitePlayer.verusId,
-      fullGame.blackPlayer.verusId,
+      fullGame.player1.verusId,
+      fullGame.player2.verusId,
       packages,
     );
 
     if (!verification.valid) {
       console.error(`[Showcase] Chain verification failed for game ${game.id}:`, verification.error);
-      return { gameHash: '', whiteFinalSig: '', blackFinalSig: '', verified: false };
+      return { gameHash: '', player1FinalSig: '', player2FinalSig: '', verified: false };
     }
 
     const gameHash = computeGameHash(packages);
 
     // For showcase mode, only store the gameHash and verification timestamp.
-    // Do NOT overwrite whiteFinalSig/blackFinalSig — those come from player
+    // Do NOT overwrite player1FinalSig/player2FinalSig — those come from player
     // signmessage submissions via the showcase-sign API. (fix #2)
     if (session) {
       await prisma.gameSession.update({
@@ -139,13 +140,13 @@ export const showcaseHandler: ModeHandler = {
       });
     }
 
-    return { gameHash, whiteFinalSig: '', blackFinalSig: '', verified: true };
+    return { gameHash, player1FinalSig: '', player2FinalSig: '', verified: true };
   },
 
   async storeOnChain(game: any): Promise<StorageResult> {
     const fullGame = await prisma.game.findUnique({
       where: { id: game.id },
-      include: { whitePlayer: true, blackPlayer: true, moves: { orderBy: { createdAt: 'asc' } } },
+      include: { player1: true, player2: true, moves: { orderBy: { createdAt: 'asc' } } },
     });
     if (!fullGame) return { success: false, error: 'Game not found' };
 
@@ -157,36 +158,36 @@ export const showcaseHandler: ModeHandler = {
     const moveSigs = fullGame.moves.filter(m => m.signature).map(m => m.signature as string);
     const duration = Math.floor((fullGame.updatedAt.getTime() - fullGame.createdAt.getTime()) / 1000);
 
-    const whiteName = fullGame.whitePlayer.displayName
-      ? `${fullGame.whitePlayer.displayName}@`
-      : fullGame.whitePlayer.verusId;
-    const blackName = fullGame.blackPlayer.displayName
-      ? `${fullGame.blackPlayer.displayName}@`
-      : fullGame.blackPlayer.verusId;
+    const player1Name = fullGame.player1.displayName
+      ? `${fullGame.player1.displayName}@`
+      : fullGame.player1.verusId;
+    const player2Name = fullGame.player2.displayName
+      ? `${fullGame.player2.displayName}@`
+      : fullGame.player2.verusId;
 
     let winnerName = '';
     if (fullGame.winner) {
-      if (fullGame.winner === fullGame.whitePlayerId) winnerName = whiteName;
-      else if (fullGame.winner === fullGame.blackPlayerId) winnerName = blackName;
+      if (fullGame.winner === fullGame.player1Id) winnerName = player1Name;
+      else if (fullGame.winner === fullGame.player2Id) winnerName = player2Name;
       else winnerName = fullGame.winner;
     }
 
     const finalState: LiveGameState = {
-      white: whiteName,
-      black: blackName,
+      white: player1Name,
+      black: player2Name,
       moves,
       moveCount: moves.length,
       startedAt: Math.floor(fullGame.createdAt.getTime() / 1000),
       mode: 'showcase',
       status: 'completed',
-      whiteOpenSig: session.whiteOpeningSig || '',   // opening sigs from dedicated columns
-      blackOpenSig: session.blackOpeningSig || '',
+      whiteOpenSig: session.player1OpeningSig || '',   // opening sigs from dedicated columns
+      blackOpenSig: session.player2OpeningSig || '',
       winner: winnerName,
       result: fullGame.status === 'COMPLETED' ? 'checkmate' : fullGame.status.toLowerCase(),
       duration,
       gameHash: session.gameHash,
-      whiteSig: session.whiteFinalSig || '',          // closing sigs from dedicated columns
-      blackSig: session.blackFinalSig || '',
+      whiteSig: session.player1FinalSig || '',          // closing sigs from dedicated columns
+      blackSig: session.player2FinalSig || '',
       moveSigs,
     };
 

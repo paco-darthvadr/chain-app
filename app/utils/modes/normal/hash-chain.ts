@@ -20,12 +20,15 @@ export function hashMovePackage(pkg: MovePackageData): string {
 /**
  * Compute the initial anchor hash for the first move.
  * This ties the hash chain to the specific game and players.
+ * NOTE: internal JSON keys remain 'white'/'black' for backward compatibility
+ * with existing hash chains.
  */
-export function computeAnchorHash(subIdName: string, white: string, black: string): string {
+export function computeAnchorHash(subIdName: string, player1: string, player2: string): string {
+  // KEEP 'white'/'black' as field names in the hash object — changing these would break existing chains
   const anchor = {
     subIdName,
-    white,
-    black,
+    white: player1,
+    black: player2,
     startPos: 'standard',
   };
   const canonical = JSON.stringify(anchor, Object.keys(anchor).sort());
@@ -38,15 +41,15 @@ export function computeAnchorHash(subIdName: string, white: string, black: strin
  */
 export function verifyChain(
   subIdName: string,
-  white: string,
-  black: string,
+  player1: string,
+  player2: string,
   packages: MovePackageData[]
 ): { valid: boolean; error?: string; moveNum?: number } {
   if (packages.length === 0) {
     return { valid: true };
   }
 
-  const anchorHash = computeAnchorHash(subIdName, white, black);
+  const anchorHash = computeAnchorHash(subIdName, player1, player2);
 
   let expectedPrevHash = anchorHash;
   for (let i = 0; i < packages.length; i++) {
