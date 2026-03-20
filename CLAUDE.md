@@ -33,6 +33,7 @@ app/utils/
 ├── verus-rpc.ts          # rpcCall, waitForConfirmation, buildSubIdFullName, getPlayerName
 ├── game-counter.ts       # nextGameNumber() — atomic SQLite counter
 ├── subid-pool.ts         # Pre-registered SubID pool for showcase mode
+├── board-themes.ts       # 10 board color themes, LogoMode type, validators
 ├── chain-reader.ts       # Read game data from on-chain SubIDs
 └── modes/
     ├── types.ts           # ModeHandler interface
@@ -40,6 +41,18 @@ app/utils/
     ├── normal/            # Normal mode (hash chain + end-of-game storage)
     ├── showcase/          # Showcase mode (per-move on-chain + player signatures)
     └── original/          # Legacy mode (passthrough to BlockchainStorage.js)
+
+components/dashboard/
+├── ChallengeContext.tsx   # React Context for challenge state (persists across pages)
+├── ChallengeInbox.tsx     # Navbar dropdown: incoming/sent challenges, status dots
+├── DashboardLayout.tsx    # SideNav + Navbar wrapper
+└── SocketRegistration.tsx # Global Socket.IO connection, feeds ChallengeContext
+
+components/chessboard/
+├── Chessboard.tsx         # Board renderer (accepts boardTheme + logoMode props)
+├── ChallengeModal.tsx     # Challenge config popup (mode + theme + logo picker)
+├── GameOver.tsx           # End-of-game UI with signing flow
+└── ...
 ```
 
 ## Game Modes
@@ -69,7 +82,7 @@ interface ModeHandler {
      return yourModeHandler;
    ```
 3. Update `prisma/schema.prisma` Game.mode comment
-4. Add mode to the challenge UI dropdown in `app/users/page.tsx`
+4. Add mode option to `ChallengeModal.tsx` mode picker buttons
 
 Use shared utilities — don't duplicate:
 - `rpcCall()`, `buildSubIdFullName()`, `getPlayerName()` from `app/utils/verus-rpc.ts`
@@ -153,11 +166,28 @@ See `.env.example` for all variables. Critical ones:
 
 SQLite via Prisma. Key models:
 
-- **Game** — players, board state, status, mode, blockchain tx tracking
+- **Game** — players, board state, status, mode, boardTheme, logoMode, blockchain tx tracking
 - **GameSession** — SubID assignment, hash chain results, player signatures (opening + closing)
 - **Move** — individual moves with signed packages
 - **SubIdPool** — pre-registered SubIDs for showcase mode
 - **GameCounter** — singleton auto-incrementing game number
+
+## Board Themes
+
+10 color themes defined in `app/utils/board-themes.ts`. Chessboard uses CSS custom properties (`--square-light`, `--square-dark`). Verus logo watermark overlay with 3 modes (off/faded/centered). Challenger picks theme in `ChallengeModal` popup. Stored in Game DB columns `boardTheme` and `logoMode`.
+
+## Challenge Inbox
+
+Global challenge notification system in the Navbar (bell icon with badge). Lives in root layout (`app/layout.tsx`) via `ChallengeProvider` + `SocketRegistration` so it persists across all pages.
+
+Key architecture:
+- `ChallengeContext.tsx` — React Context stores challenge state
+- `SocketRegistration.tsx` — feeds socket events into context
+- `ChallengeInbox.tsx` — dropdown UI with status dots and actions
+- Pages use `getGlobalSocket()` to emit, window CustomEvents to communicate with context
+- Server tracks `userGameStatus` (available/in-game) and `pendingChallenges` array
+
+Accept-while-busy flow: if challenger is in-game, acceptor sends `challenge-accepted-busy` → challenger gets `ready-to-play` notification → either side can `start-game` when both available.
 
 ## Socket.IO Events
 
@@ -166,10 +196,18 @@ SQLite via Prisma. Key models:
 | Event | Direction | Purpose |
 |-------|-----------|---------|
 | `register-user` | Client → Server | Associate userId with socket |
-| `challenge-user` | Client → Server | Send game challenge (includes mode) |
+| `challenge-user` | Client → Server | Send game challenge (includes mode, boardTheme, logoMode) |
+| `challenge-cancel` | Client → Server | Cancel a sent challenge |
+| `challenge-accepted-busy` | Client → Server | Accept while challenger is in-game |
+| `start-game` | Client → Server | Both ready — server creates game |
+| `new-challenge` | Server → Client | Relay challenge with challengerStatus |
+| `challenge-cancelled` | Server → Client | Challenge was cancelled |
+| `ready-to-play` | Server → Client | Opponent accepted your challenge |
+| `user-status-changed` | Server → Client | User's game status changed |
+| `game-started` | Server → Client | Game created, redirect both players |
 | `move-made` | Client → Server | Relay board state + signed package |
 | `leave-game` | Client → Server | Notify opponent of departure |
-| `rematch-offer/accept` | Bidirectional | Rematch flow (carries over mode, randomizes colors) |
+| `rematch-offer/accept` | Bidirectional | Rematch flow (carries over mode + theme, randomizes colors) |
 
 ## Known Limitations
 
