@@ -5,6 +5,7 @@ import { io } from "socket.io-client";
 import { popReadySubId, ensurePoolSize } from '@/app/utils/subid-pool';
 import { nextGameNumber } from '@/app/utils/game-counter';
 import { rpcCall } from '@/app/utils/verus-rpc';
+import { isValidThemeId, isValidLogoMode } from '@/app/utils/board-themes';
 
 /**
  * Fire-and-forget: submit a registernamecommitment so the SubID
@@ -26,7 +27,7 @@ function startEarlyCommitment(subIdName: string) {
 
 export async function POST(req: Request) {
     try {
-        const { whitePlayerId, blackPlayerId, mode } = await req.json();
+        const { whitePlayerId, blackPlayerId, mode, boardTheme, logoMode } = await req.json();
 
         if (!whitePlayerId || !blackPlayerId) {
             return new NextResponse('Missing player IDs', { status: 400 });
@@ -41,6 +42,8 @@ export async function POST(req: Request) {
         };
 
         const gameMode = mode || 'normal';
+        const validTheme = (boardTheme && isValidThemeId(boardTheme)) ? boardTheme : 'classic';
+        const validLogoMode = (logoMode && isValidLogoMode(logoMode)) ? logoMode : 'off';
 
         const newGame = await prisma.game.create({
             data: {
@@ -49,6 +52,8 @@ export async function POST(req: Request) {
                 boardState: initialBoardState,
                 status: 'IN_PROGRESS',
                 mode: gameMode,
+                boardTheme: validTheme,
+                logoMode: validLogoMode,
             },
         });
 
