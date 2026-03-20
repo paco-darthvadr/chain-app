@@ -2,12 +2,8 @@
 
 import { useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { useChallenges } from './ChallengeContext';
 
-/**
- * Single global socket connection for the dashboard.
- * Stored on window to survive Next.js module boundary splits.
- * All pages use this socket via window events + getGlobalSocket().
- */
 export function getGlobalSocket(): Socket | null {
     if (typeof window !== 'undefined') {
         return (window as any).__chessSocket || null;
@@ -23,6 +19,7 @@ function setGlobalSocket(socket: Socket | null) {
 
 export default function SocketRegistration() {
     const initialized = useRef(false);
+    const { addChallenge, removeChallenge, updateChallengerStatus, markOpponentReady } = useChallenges();
 
     useEffect(() => {
         if (initialized.current) return;
@@ -40,11 +37,24 @@ export default function SocketRegistration() {
             console.log('[SocketRegistration] Registered user', userId);
         });
 
-        // Relay all socket events as window CustomEvents so any page can listen
-        socket.on('new-challenge', ({ challengerId, challengerName, mode }) => {
+        socket.on('new-challenge', ({ challengerId, challengerName, mode, boardTheme, logoMode, challengerStatus }) => {
+            addChallenge({
+                challengerId,
+                challengerName,
+                mode: mode || 'normal',
+                boardTheme: boardTheme || 'classic',
+                logoMode: logoMode || 'off',
+                challengerStatus: challengerStatus || 'available',
+                timestamp: Date.now(),
+                state: 'incoming',
+            });
             window.dispatchEvent(new CustomEvent('socket:new-challenge', {
                 detail: { challengerId, challengerName, mode }
             }));
+        });
+
+        socket.on('challenge-cancelled', ({ challengerId }) => {
+            removeChallenge(challengerId);
         });
 
         socket.on('challenge-failed', ({ message }) => {
@@ -60,10 +70,19 @@ export default function SocketRegistration() {
             window.location.href = `/game/${gameId}`;
         });
 
-        socket.on('challenge-denied', ({ declinerName }) => {
+        socket.on('challenge-denied', ({ challengerId, declinerName }) => {
+            if (challengerId) removeChallenge(challengerId);
             window.dispatchEvent(new CustomEvent('socket:challenge-denied', {
                 detail: { declinerName }
             }));
+        });
+
+        socket.on('user-status-changed', ({ userId: changedUserId, status }) => {
+            updateChallengerStatus(changedUserId, status);
+        });
+
+        socket.on('ready-to-play', ({ acceptorId, acceptorName }) => {
+            markOpponentReady(acceptorId, acceptorName);
         });
 
         socket.on('refresh-game-list', () => {
@@ -78,7 +97,7 @@ export default function SocketRegistration() {
             socket.disconnect();
             setGlobalSocket(null);
         };
-    }, []);
+    }, [addChallenge, removeChallenge, updateChallengerStatus, markOpponentReady]);
 
     return null;
 }
