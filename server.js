@@ -251,4 +251,11 @@ io.on('connection', (socket) => {
 const PORT = 3002;
 httpServer.listen(PORT, () => {
   console.log(`Socket.IO server listening on port ${PORT}`);
+
+  // Trigger SubID pool replenishment on startup
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  fetch(`${appUrl}/api/pool`, { method: 'POST' })
+    .then(res => res.json())
+    .then(data => console.log('[SubID Pool] Startup replenishment:', data))
+    .catch(err => console.log('[SubID Pool] Startup replenishment skipped (app may not be ready):', err.message));
 });
