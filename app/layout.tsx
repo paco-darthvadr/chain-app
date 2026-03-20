@@ -2,6 +2,8 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { cn } from "../lib/utils";
 import { ThemeProvider } from "@/components/theme-provider";
+import { ChallengeProvider } from "@/components/dashboard/ChallengeContext";
+import SocketRegistration from "@/components/dashboard/SocketRegistration";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -25,7 +27,10 @@ export default function RootLayout({
           defaultTheme="dark"
           disableTransitionOnChange
         >
-          {children}
+          <ChallengeProvider>
+            <SocketRegistration />
+            {children}
+          </ChallengeProvider>
         </ThemeProvider>
       </body>
     </html>
