@@ -4,11 +4,9 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { io, Socket } from 'socket.io-client';
 import { getUsers, getGamesForUser, deleteUser } from './actions';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
-
-let socket: Socket | null = null;
+import { getGlobalSocket } from '@/components/dashboard/SocketRegistration';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import BlockchainInfoDialog from '@/components/chessboard/BlockchainInfoDialog';
 import ChallengeModal from '@/components/chessboard/ChallengeModal';
@@ -75,42 +73,32 @@ function UsersPage() {
     }, []);
     
     useEffect(() => {
-        const socketURL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3002';
-        socket = io(socketURL);
+        // Use the global socket — don't create a local one
+        fetchUsersAndGames(localStorage.getItem('currentUser'));
 
-        socket.on('connect', () => {
-            const userId = localStorage.getItem('currentUser');
-            if (userId) {
-                socket!.emit('register-user', userId);
-                console.log('[UsersPage] Registered user', userId);
-            }
-            fetchUsersAndGames(localStorage.getItem('currentUser'));
-        });
-
-        socket.on('challenge-failed', ({ message }) => {
-            alert(message);
+        // Listen for page-specific events via window CustomEvents from SocketRegistration
+        const onChallengeFailed = (e: Event) => {
+            const detail = (e as CustomEvent).detail;
+            alert(detail?.message || 'Challenge failed');
             setChallengeSent(null);
-        });
-
-        socket.on('game-started', ({ gameId }) => {
-            router.push(`/game/${gameId}`);
-        });
-
-        socket.on('refresh-game-list', () => {
+        };
+        const onRefreshGames = () => {
             const saved = localStorage.getItem('currentUser');
             if (saved) fetchUsersAndGames(saved);
-        });
-
-        socket.on('refresh-user-list', () => {
+        };
+        const onRefreshUsers = () => {
             const saved = localStorage.getItem('currentUser');
             fetchUsersAndGames(saved);
-        });
+        };
+
+        window.addEventListener('socket:challenge-failed', onChallengeFailed);
+        window.addEventListener('socket:refresh-game-list', onRefreshGames);
+        window.addEventListener('socket:refresh-user-list', onRefreshUsers);
 
         return () => {
-            if (socket) {
-                socket.disconnect();
-                socket = null;
-            }
+            window.removeEventListener('socket:challenge-failed', onChallengeFailed);
+            window.removeEventListener('socket:refresh-game-list', onRefreshGames);
+            window.removeEventListener('socket:refresh-user-list', onRefreshUsers);
         };
     }, [fetchUsersAndGames]);
 
@@ -123,11 +111,12 @@ function UsersPage() {
 
     const handleOpenChallenge = (user: User) => {
         if (!currentUserId) return alert("Please select your user identity first.");
-        if (!socket) return alert("Not connected to server. Please wait.");
+        if (!getGlobalSocket()) return alert("Not connected to server. Please wait.");
         setChallengeTarget(user);
     };
 
     const handleConfirmChallenge = ({ mode, boardTheme, logoMode }: { mode: string; boardTheme: string; logoMode: string }) => {
+        const socket = getGlobalSocket();
         if (!currentUserId || !socket || !challengeTarget) return;
 
         const currentUser = users.find(u => u.id === currentUserId);
