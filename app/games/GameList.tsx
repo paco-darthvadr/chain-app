@@ -300,44 +300,87 @@ export default function GameList({ initialGames }: { initialGames: any[] }) {
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {games.map((game: any) => (
-                <Card key={game.id} className="hover:shadow-lg transition-shadow">
-                  <CardHeader>
-                    <CardTitle className="text-lg">
-                      {game.whitePlayer?.verusId || 'White'} vs {game.blackPlayer?.verusId || 'Black'}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
+              {games.map((game: any) => {
+                const whiteName = game.whitePlayer?.displayName
+                  ? `${game.whitePlayer.displayName}@`
+                  : game.whitePlayer?.verusId || 'White';
+                const blackName = game.blackPlayer?.displayName
+                  ? `${game.blackPlayer.displayName}@`
+                  : game.blackPlayer?.verusId || 'Black';
+                const subIdName = game.gameSession?.subIdName;
+                const isStored = !!game.blockchainTxId && game.blockchainTxId !== 'PROCESSING';
+                const isCompleted = game.status === 'COMPLETED';
+                const hasSigs = !!(game.gameSession?.whiteFinalSig && game.gameSession?.blackFinalSig);
+
+                return (
+                  <Card key={game.id} className="hover:shadow-lg transition-shadow">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-base">
+                          {subIdName ? subIdName.replace('game', 'Game #') : 'Game'}
+                        </CardTitle>
+                        <span className={`text-xs px-2 py-1 rounded-full ${
+                          game.mode === 'showcase'
+                            ? 'bg-purple-500/20 text-purple-400'
+                            : game.mode === 'normal'
+                            ? 'bg-blue-500/20 text-blue-400'
+                            : 'bg-muted text-muted-foreground'
+                        }`}>
+                          {game.mode || 'original'}
+                        </span>
+                      </div>
                       <p className="text-sm text-muted-foreground">
-                        Status: <span className="capitalize">{game.status.toLowerCase().replace('_', ' ')}</span>
+                        {whiteName} vs {blackName}
                       </p>
-                      <p className="text-sm text-muted-foreground">
-                        Mode: <span className="capitalize">{game.mode || 'original'}</span>
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        Created: {new Date(game.createdAt).toLocaleDateString()}
-                      </p>
-                      {game.winner && (
-                        <p className="text-sm font-medium text-green-500">
-                          Winner: {game.winner}
-                        </p>
-                      )}
-                      {game.blockchainTxId && (
-                        <p className="text-xs text-amber-400">
-                          Stored on chain
-                        </p>
-                      )}
-                      <Link
-                        href={`/game/${game.id}`}
-                        className="inline-block mt-3 px-4 py-2 bg-primary text-primary-foreground rounded hover:opacity-90 transition-opacity text-sm"
-                      >
-                        {game.status === 'IN_PROGRESS' ? 'Join Game' : 'View Game'}
-                      </Link>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Status:</span>
+                          <span className="capitalize">{game.status.toLowerCase().replace('_', ' ')}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Created:</span>
+                          <span>{new Date(game.createdAt).toLocaleDateString()}</span>
+                        </div>
+                        {game.winner && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Winner:</span>
+                            <span className="font-medium text-green-500">
+                              {game.winner === game.whitePlayerId ? whiteName : game.winner === game.blackPlayerId ? blackName : game.winner}
+                            </span>
+                          </div>
+                        )}
+                        {subIdName && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">SubID:</span>
+                            <span className="font-mono text-xs">{subIdName}.ChessGame@</span>
+                          </div>
+                        )}
+
+                        {/* Chain status */}
+                        {isStored ? (
+                          <p className="text-xs text-green-500 flex items-center gap-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                            Stored on chain
+                          </p>
+                        ) : isCompleted && subIdName ? (
+                          <p className="text-xs text-yellow-500">
+                            {hasSigs ? 'Signed, not stored yet' : 'Not signed or stored'}
+                          </p>
+                        ) : null}
+
+                        <Link
+                          href={`/game/${game.id}`}
+                          className="inline-block mt-3 px-4 py-2 bg-primary text-primary-foreground rounded hover:opacity-90 transition-opacity text-sm w-full text-center"
+                        >
+                          {game.status === 'IN_PROGRESS' ? 'Join Game' : isCompleted && !isStored ? 'Sign & Store' : 'View Game'}
+                        </Link>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </>
