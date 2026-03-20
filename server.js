@@ -254,7 +254,9 @@ httpServer.listen(PORT, () => {
 
   // Trigger SubID pool replenishment on startup
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-  fetch(`${appUrl}/api/pool`, { method: 'POST' })
+  const headers = { 'Content-Type': 'application/json' };
+  if (process.env.INTERNAL_API_SECRECT) headers['x-api-secret'] = process.env.INTERNAL_API_SECRECT;
+  fetch(`${appUrl}/api/pool`, { method: 'POST', headers })
     .then(res => res.json())
     .then(data => console.log('[SubID Pool] Startup replenishment:', data))
     .catch(err => console.log('[SubID Pool] Startup replenishment skipped (app may not be ready):', err.message));

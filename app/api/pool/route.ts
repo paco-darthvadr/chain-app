@@ -13,9 +13,18 @@ export async function GET() {
   }
 }
 
-// POST /api/pool — triggers replenishment
-export async function POST() {
+// POST /api/pool — triggers replenishment (requires internal API secret)
+export async function POST(req: Request) {
   try {
+    // Auth: require internal secret to prevent unauthorized SubID registration
+    const secret = process.env.INTERNAL_API_SECRECT;
+    if (secret) {
+      const authHeader = req.headers.get('x-api-secret');
+      if (authHeader !== secret) {
+        return new NextResponse('Unauthorized', { status: 401 });
+      }
+    }
+
     if (!isPoolEnabled()) {
       return NextResponse.json({ message: 'Pool is disabled' }, { status: 200 });
     }
