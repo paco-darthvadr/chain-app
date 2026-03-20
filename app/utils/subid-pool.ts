@@ -1,24 +1,6 @@
-import axios from 'axios';
 import { prisma } from '@/lib/prisma';
-
-// ---------------------------------------------------------------------------
-// RPC helper
-// ---------------------------------------------------------------------------
-
-const VERUS_RPC_URL = `http://${process.env.VERUS_RPC_USER}:${process.env.VERUS_RPC_PASSWORD}@${process.env.VERUS_RPC_HOST || '127.0.0.1'}:${process.env.VERUS_RPC_PORT || 18843}`;
-
-async function rpcCall(method: string, params: any[] = []): Promise<any> {
-  const response = await axios.post(VERUS_RPC_URL, {
-    method,
-    params,
-    id: 1,
-    jsonrpc: '2.0',
-  });
-  if (response.data.error) {
-    throw new Error(`RPC ${method} error: ${JSON.stringify(response.data.error)}`);
-  }
-  return response.data.result;
-}
+import { rpcCall, waitForConfirmation, buildSubIdFullName } from './verus-rpc';
+import { nextGameNumber } from './game-counter';
 
 // ---------------------------------------------------------------------------
 // 1. isPoolEnabled
@@ -85,18 +67,15 @@ export async function popReadySubId(): Promise<{
 export async function ensurePoolSize(minSize: number = 5): Promise<void> {
   if (!isPoolEnabled()) return;
 
-  // First: find failed records that need retry
   const failed = await prisma.subIdPool.findMany({
     where: { status: 'failed' },
     orderBy: { gameNumber: 'asc' },
   });
 
-  // Count ready + actively registering
   const available = await prisma.subIdPool.count({
     where: { status: { in: ['ready', 'registering'] } },
   });
 
-  // After retrying failed, how many NEW ones do we need?
   const newNeeded = Math.max(0, minSize - available - failed.length);
 
   if (failed.length === 0 && newNeeded === 0) return;
@@ -128,28 +107,6 @@ export async function ensurePoolSize(minSize: number = 5): Promise<void> {
 // 5. registerSubId — handles both new and retry
 // ---------------------------------------------------------------------------
 
-async function waitForConfirmation(
-  txid: string,
-  maxWait: number = 300000,
-): Promise<boolean> {
-  const start = Date.now();
-  while (Date.now() - start < maxWait) {
-    try {
-      const tx = await rpcCall('getrawtransaction', [txid, 1]);
-      if (tx && tx.confirmations && tx.confirmations > 0) {
-        console.log(
-          `[SubID Pool] TX ${txid.substring(0, 16)}... confirmed (${tx.confirmations} conf)`,
-        );
-        return true;
-      }
-    } catch {
-      // TX not found yet — keep waiting
-    }
-    await new Promise((resolve) => setTimeout(resolve, 10000));
-  }
-  return false;
-}
-
 /**
  * Register a SubID on chain. Pass an existing pool record to retry a failed
  * registration, or omit to allocate a new game number.
@@ -162,7 +119,6 @@ async function registerSubId(existingRecord?: any): Promise<void> {
   let subIdName: string;
 
   if (existingRecord) {
-    // Retry: reuse existing record
     poolRecord = existingRecord;
     subIdName = existingRecord.subIdName;
     await prisma.subIdPool.update({
@@ -171,24 +127,15 @@ async function registerSubId(existingRecord?: any): Promise<void> {
     });
     console.log(`[SubID Pool] Retrying registration for ${subIdName}...`);
   } else {
-    // New: allocate game number from shared GameCounter
-    await prisma.$executeRaw`INSERT OR IGNORE INTO GameCounter (id, nextGame) VALUES ('singleton', 1)`;
-    const gameNumber = await prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`UPDATE GameCounter SET nextGame = nextGame + 1 WHERE id = 'singleton'`;
-      const result = await tx.gameCounter.findUnique({
-        where: { id: 'singleton' },
-      });
-      return result!.nextGame - 1;
-    });
-    subIdName = `game${String(gameNumber).padStart(4, '0')}`;
+    const counter = await nextGameNumber();
+    subIdName = counter.subIdName;
     poolRecord = await prisma.subIdPool.create({
-      data: { subIdName, gameNumber, status: 'registering' },
+      data: { subIdName, gameNumber: counter.gameNumber, status: 'registering' },
     });
   }
 
   const parentAddress = process.env.CHESSGAME_IDENTITY_ADDRESS;
-  const parentName = process.env.CHESSGAME_IDENTITY_NAME || 'ChessGame@';
-  const fullName = `${subIdName}.${parentName.replace('@', '')}@`;
+  const fullName = buildSubIdFullName(subIdName);
 
   try {
     if (!parentAddress) {
@@ -212,10 +159,7 @@ async function registerSubId(existingRecord?: any): Promise<void> {
 
     // Step 1: registernamecommitment
     const commitment = await rpcCall('registernamecommitment', [
-      subIdName,
-      parentAddress,
-      '',
-      parentAddress,
+      subIdName, parentAddress, '', parentAddress,
     ]);
     console.log(`[SubID Pool] Name commitment for ${subIdName}: txid=${commitment.txid}`);
 
@@ -277,7 +221,6 @@ async function registerSubId(existingRecord?: any): Promise<void> {
 
   } catch (err: any) {
     console.error(`[SubID Pool] Registration failed for ${subIdName}:`, err.message);
-    // Mark as failed — will be retried by ensurePoolSize, never deleted
     try {
       await prisma.subIdPool.update({
         where: { id: poolRecord.id },
@@ -289,7 +232,6 @@ async function registerSubId(existingRecord?: any): Promise<void> {
   }
 }
 
-// Keep registerOneSubId as the public API (wraps registerSubId for new registrations)
 export async function registerOneSubId(): Promise<void> {
   return registerSubId();
 }

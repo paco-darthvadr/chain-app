@@ -1,16 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-import axios from 'axios';
-
-const VERUS_RPC_URL = `http://${process.env.VERUS_RPC_USER}:${process.env.VERUS_RPC_PASSWORD}@${process.env.VERUS_RPC_HOST || '127.0.0.1'}:${process.env.VERUS_RPC_PORT || 18843}`;
-
-async function rpcCall(method: string, params: any[] = []): Promise<any> {
-    const response = await axios.post(VERUS_RPC_URL, {
-        method, params, id: 1, jsonrpc: '2.0',
-    });
-    if (response.data.error) throw new Error(response.data.error.message);
-    return response.data.result;
-}
+import { rpcCall, buildSubIdFullName } from '@/app/utils/verus-rpc';
 
 // GET /api/game/[gameId]/subid-status — Check SubID registration progress
 export async function GET(request: Request, { params }: { params: { gameId: string } }) {
@@ -27,8 +17,7 @@ export async function GET(request: Request, { params }: { params: { gameId: stri
             return NextResponse.json({ status: 'none', message: 'No SubID assigned' });
         }
 
-        const parentName = process.env.CHESSGAME_IDENTITY_NAME || 'ChessGame@';
-        const fullName = `${session.subIdName}.${parentName.replace('@', '')}@`;
+        const fullName = buildSubIdFullName(session.subIdName);
 
         // If we already have the address stored, it's online
         if (session.subIdAddress) {

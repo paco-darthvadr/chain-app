@@ -1,16 +1,4 @@
-import axios from 'axios';
-
-const VERUS_RPC_URL = `http://${process.env.VERUS_RPC_USER}:${process.env.VERUS_RPC_PASSWORD}@${process.env.VERUS_RPC_HOST || '127.0.0.1'}:${process.env.VERUS_RPC_PORT || 18843}`;
-
-async function rpcCall(method: string, params: any[] = []): Promise<any> {
-  const response = await axios.post(VERUS_RPC_URL, {
-    method, params, id: 1, jsonrpc: '2.0',
-  });
-  if (response.data.error) {
-    throw new Error(`RPC ${method} error: ${JSON.stringify(response.data.error)}`);
-  }
-  return response.data.result;
-}
+import { rpcCall } from '@/app/utils/verus-rpc';
 
 export interface OpeningCommitment {
   white: string;

@@ -2,6 +2,7 @@ import { ModeHandler, MoveData, SignedMovePackage, GameEndResult, StorageResult 
 import { hashMovePackage, computeAnchorHash, verifyChain, computeGameHash, MovePackageData } from './hash-chain';
 import { getMoveSigner } from './move-signer';
 import { createGameSubId, storeGameData, GameData } from './subid-storage';
+import { getPlayerName } from '@/app/utils/verus-rpc';
 import { prisma } from '@/lib/prisma';
 
 export const normalHandler: ModeHandler = {
@@ -202,13 +203,8 @@ export const normalHandler: ModeHandler = {
         }
       }
 
-      // Resolve player identities to friendly VerusID names for on-chain storage
-      const whiteName = fullGame.whitePlayer.displayName
-        ? `${fullGame.whitePlayer.displayName}@`
-        : fullGame.whitePlayer.verusId;
-      const blackName = fullGame.blackPlayer.displayName
-        ? `${fullGame.blackPlayer.displayName}@`
-        : fullGame.blackPlayer.verusId;
+      const whiteName = getPlayerName(fullGame.whitePlayer);
+      const blackName = getPlayerName(fullGame.blackPlayer);
 
       let winnerDisplayName = '';
       if (winnerVerusId) {

@@ -36,7 +36,7 @@ model Game {
   boardState Json
   status     String   @default("IN_PROGRESS") // e.g., IN_PROGRESS, COMPLETED, ABORTED
   winner     String? // 'WHITE', 'BLACK', 'DRAW'
-  mode       String   @default("original") // "original", "normal", "tournament"
+  mode       String   @default("original") // "original", "normal", "showcase"
 
   // Blockchain storage tracking
   blockchainTxId      String? // Transaction ID on Verus blockchain
@@ -93,7 +93,7 @@ model SubIdPool {
   subIdName   String   @unique  // "game0017"
   gameNumber  Int      @unique  // 17
   address     String?            // i-address once registered
-  status      String   @default("registering") // "registering" | "ready" | "used"
+  status      String   @default("registering") // "registering" | "ready" | "used" | "failed"
   commitTxId  String?            // registernamecommitment txid
   createdAt   DateTime @default(now())
   usedAt      DateTime?

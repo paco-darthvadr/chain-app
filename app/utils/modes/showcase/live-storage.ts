@@ -1,29 +1,5 @@
-import axios from 'axios';
-import { CHESS_VDXF_KEYS } from '../normal/vdxf-keys';
-
-const VERUS_RPC_URL = `http://${process.env.VERUS_RPC_USER}:${process.env.VERUS_RPC_PASSWORD}@${process.env.VERUS_RPC_HOST || '127.0.0.1'}:${process.env.VERUS_RPC_PORT || 18843}`;
-const DD_KEY = 'i4GC1YGEVD21afWudGoFJVdnfjJ5XWnCQv';
-
-async function rpcCall(method: string, params: any[] = []): Promise<any> {
-  const response = await axios.post(VERUS_RPC_URL, {
-    method, params, id: 1, jsonrpc: '2.0',
-  });
-  if (response.data.error) {
-    throw new Error(`RPC ${method} error: ${JSON.stringify(response.data.error)}`);
-  }
-  return response.data.result;
-}
-
-function dd(value: string, label: string, mimetype: string = 'text/plain'): object {
-  return {
-    [DD_KEY]: {
-      version: 1,
-      mimetype,
-      objectdata: { message: value },
-      label,
-    }
-  };
-}
+import { CHESS_VDXF_KEYS, dd } from '../normal/vdxf-keys';
+import { rpcCall, buildSubIdFullName } from '@/app/utils/verus-rpc';
 
 export interface LiveGameState {
   white: string;
@@ -89,8 +65,7 @@ export async function updateGameOnChain(
   subIdName: string,
   state: LiveGameState,
 ): Promise<{ txid: string }> {
-  const parentName = process.env.CHESSGAME_IDENTITY_NAME || 'ChessGame@';
-  const fullName = `${subIdName}.${parentName.replace('@', '')}@`;
+  const fullName = buildSubIdFullName(subIdName);
 
   // Get current identity to preserve non-game fields
   const identityResult = await rpcCall('getidentity', [fullName]);
@@ -109,15 +84,3 @@ export async function updateGameOnChain(
   return { txid };
 }
 
-/**
- * Check if a transaction is visible in the mempool.
- * Returns true if the tx exists (confirmed or unconfirmed).
- */
-export async function checkMempool(txid: string): Promise<{ found: boolean; confirmations: number }> {
-  try {
-    const tx = await rpcCall('getrawtransaction', [txid, 1]);
-    return { found: true, confirmations: tx.confirmations || 0 };
-  } catch {
-    return { found: false, confirmations: 0 };
-  }
-}

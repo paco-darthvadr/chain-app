@@ -3,6 +3,7 @@ import { hashMovePackage, computeAnchorHash, verifyChain, computeGameHash, MoveP
 import { getMoveSigner } from '../normal/move-signer';
 import { updateGameOnChain, LiveGameState } from './live-storage';
 import { createGameSubId } from '../normal/subid-storage';
+import { getPlayerName } from '@/app/utils/verus-rpc';
 import { prisma } from '@/lib/prisma';
 
 export const showcaseHandler: ModeHandler = {
@@ -60,12 +61,8 @@ export const showcaseHandler: ModeHandler = {
       include: { whitePlayer: true, blackPlayer: true },
     });
 
-    const whiteName = fullGame?.whitePlayer?.displayName
-      ? `${fullGame.whitePlayer.displayName}@`
-      : fullGame?.whitePlayer?.verusId || '';
-    const blackName = fullGame?.blackPlayer?.displayName
-      ? `${fullGame.blackPlayer.displayName}@`
-      : fullGame?.blackPlayer?.verusId || '';
+    const whiteName = fullGame?.whitePlayer ? getPlayerName(fullGame.whitePlayer) : '';
+    const blackName = fullGame?.blackPlayer ? getPlayerName(fullGame.blackPlayer) : '';
 
     const liveState: LiveGameState = {
       white: whiteName,

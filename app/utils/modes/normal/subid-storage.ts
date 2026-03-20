@@ -1,51 +1,7 @@
-import axios from 'axios';
-
-const VERUS_RPC_URL = `http://${process.env.VERUS_RPC_USER}:${process.env.VERUS_RPC_PASSWORD}@${process.env.VERUS_RPC_HOST || '127.0.0.1'}:${process.env.VERUS_RPC_PORT || 18843}`;
-
-/**
- * Make a JSON-RPC call to the Verus daemon.
- */
-async function rpcCall(method: string, params: any[] = []): Promise<any> {
-  const response = await axios.post(VERUS_RPC_URL, {
-    method,
-    params,
-    id: 1,
-    jsonrpc: '2.0',
-  });
-  if (response.data.error) {
-    throw new Error(`RPC ${method} error: ${JSON.stringify(response.data.error)}`);
-  }
-  return response.data.result;
-}
-
-/**
- * Register a SubID under ChessGame@ for a completed game.
- * Uses registernamecommitment + registeridentity two-step process.
- */
-/**
- * Helper to wait for a commitment tx to be mined.
- * Polls getrawtransaction confirmations every 10s, up to maxWait ms.
- */
-async function waitForConfirmation(txid: string, maxWait: number = 120000): Promise<boolean> {
-  const start = Date.now();
-  while (Date.now() - start < maxWait) {
-    try {
-      const tx = await rpcCall('getrawtransaction', [txid, 1]);
-      if (tx && tx.confirmations && tx.confirmations > 0) {
-        console.log(`[SubID] TX ${txid.substring(0, 16)}... confirmed (${tx.confirmations} conf)`);
-        return true;
-      }
-    } catch (e) {
-      // TX not found yet, keep waiting
-    }
-    await new Promise(resolve => setTimeout(resolve, 10000));
-  }
-  return false;
-}
+import { rpcCall, waitForConfirmation, buildSubIdFullName } from '@/app/utils/verus-rpc';
 
 export async function createGameSubId(subIdName: string): Promise<{ address: string }> {
-  const parentName = process.env.CHESSGAME_IDENTITY_NAME || 'ChessGame@';
-  const fullName = `${subIdName}.${parentName.replace('@', '')}@`;
+  const fullName = buildSubIdFullName(subIdName);
 
   // Check if SubID already exists
   try {
@@ -144,34 +100,13 @@ export interface GameData {
   moveSigs?: string[];    // per-move signatures (tournament mode or user opt-in)
 }
 
-// DataDescriptor key i-address (the type marker for DataDescriptor objects)
-const DD_KEY = 'i4GC1YGEVD21afWudGoFJVdnfjJ5XWnCQv';
-
-/**
- * Wrap a value as a DataDescriptor for contentmultimap.
- * The daemon auto-decodes these into readable JSON with labels and MIME types.
- */
-function dd(value: string, label: string, mimetype: string = 'text/plain'): object {
-  return {
-    [DD_KEY]: {
-      version: 1,
-      mimetype,
-      objectdata: { message: value },
-      label,
-    }
-  };
-}
-
 /**
  * Update a game SubID's contentmultimap with final game data.
- * Each field stored as a DataDescriptor under its own VDXF key.
- * The daemon auto-decodes DataDescriptors into readable JSON with labels and MIME types.
  */
 export async function storeGameData(subIdName: string, data: GameData): Promise<{ txid: string }> {
-  const { CHESS_VDXF_KEYS } = await import('./vdxf-keys');
+  const { CHESS_VDXF_KEYS, dd } = await import('./vdxf-keys');
 
-  const parentName = process.env.CHESSGAME_IDENTITY_NAME || 'ChessGame@';
-  const fullName = `${subIdName}.${parentName.replace('@', '')}@`;
+  const fullName = buildSubIdFullName(subIdName);
 
   // Get the current identity
   const identityResult = await rpcCall('getidentity', [fullName]);

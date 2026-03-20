@@ -32,9 +32,8 @@ export async function proxy(request: NextRequest) {
   }
 
   // Allow internal requests from server.js (rematch creates games)
-  // Uses INTERNAL_API_SECRECT env var (note: legacy spelling)
   {
-    const secret = process.env.INTERNAL_API_SECRECT;
+    const secret = process.env.INTERNAL_API_SECRET;
     const isInternalGameRoute =
       (pathname === '/api/game' && request.method === 'POST') ||
       (pathname.match(/^\/api\/game\/[^/]+$/) && request.method === 'GET');

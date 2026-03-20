@@ -3,6 +3,26 @@ import { prisma } from '@/lib/prisma';
 import { initialPieces } from '@/app/lib/initialPieces';
 import { io } from "socket.io-client";
 import { popReadySubId, ensurePoolSize } from '@/app/utils/subid-pool';
+import { nextGameNumber } from '@/app/utils/game-counter';
+import { rpcCall } from '@/app/utils/verus-rpc';
+
+/**
+ * Fire-and-forget: submit a registernamecommitment so the SubID
+ * starts mining early. Does not block the response.
+ */
+function startEarlyCommitment(subIdName: string) {
+    const parentAddress = process.env.CHESSGAME_IDENTITY_ADDRESS;
+    (async () => {
+        try {
+            const result = await rpcCall('registernamecommitment', [
+                subIdName, parentAddress, '', parentAddress,
+            ]);
+            console.log(`[SubID] Commitment for ${subIdName} submitted:`, result.txid);
+        } catch (e: any) {
+            console.log(`[SubID] Early commitment for ${subIdName} failed:`, e.message);
+        }
+    })();
+}
 
 export async function POST(req: Request) {
     try {
@@ -33,116 +53,49 @@ export async function POST(req: Request) {
         });
 
         if (gameMode === 'normal') {
-            // Normal mode: create a GameSession with SubID name
-            // Atomic counter increment for SubID naming (safe for SQLite)
-            await prisma.$executeRaw`INSERT OR IGNORE INTO GameCounter (id, nextGame) VALUES ('singleton', 1)`;
-            const gameNumber = await prisma.$transaction(async (tx) => {
-                await tx.$executeRaw`UPDATE GameCounter SET nextGame = nextGame + 1 WHERE id = 'singleton'`;
-                const result = await tx.gameCounter.findUnique({ where: { id: 'singleton' } });
-                return result!.nextGame - 1; // Pre-increment value
-            });
-            const subIdName = `game${String(gameNumber).padStart(4, '0')}`;
+            // Normal mode: allocate SubID, fire-and-forget commitment
+            const { subIdName } = await nextGameNumber();
 
             await prisma.gameSession.create({
-                data: {
-                    gameId: newGame.id,
-                    subIdName,
-                },
+                data: { gameId: newGame.id, subIdName },
             });
 
-            // Fire-and-forget: start SubID registration so it's ready when game ends
-            // The registernamecommitment goes into mempool immediately,
-            // registeridentity needs it mined (~60s), so starting early is key.
-            (async () => {
-                try {
-                    const axios = require('axios');
-                    const VERUS_RPC_URL = `http://${process.env.VERUS_RPC_USER}:${process.env.VERUS_RPC_PASSWORD}@${process.env.VERUS_RPC_HOST || '127.0.0.1'}:${process.env.VERUS_RPC_PORT || 18843}`;
-                    const parentAddress = process.env.CHESSGAME_IDENTITY_ADDRESS;
+            startEarlyCommitment(subIdName);
 
-                    const commitRes = await axios.post(VERUS_RPC_URL, {
-                        method: 'registernamecommitment',
-                        params: [subIdName, parentAddress, '', parentAddress],
-                        id: 1, jsonrpc: '2.0',
-                    });
-                    if (commitRes.data.error) {
-                        console.log(`[SubID] Commitment for ${subIdName} failed (may already exist):`, commitRes.data.error.message);
-                        return;
-                    }
-                    console.log(`[SubID] Commitment for ${subIdName} submitted:`, commitRes.data.result.txid);
-                } catch (e: any) {
-                    console.error(`[SubID] Early commitment for ${subIdName} failed:`, e.message);
-                }
-            })();
         } else if (gameMode === 'showcase') {
-            // Showcase mode: try pool first
+            // Showcase mode: try pool first, fall back to on-the-fly
             const poolSubId = await popReadySubId();
 
             if (poolSubId) {
-                // Pool had a ready SubID — use it directly
                 await prisma.gameSession.create({
                     data: {
                         gameId: newGame.id,
                         subIdName: poolSubId.subIdName,
-                        subIdAddress: poolSubId.address,  // Already confirmed on-chain!
+                        subIdAddress: poolSubId.address,
                     },
                 });
                 console.log(`[SubID Pool] Assigned ${poolSubId.subIdName} (${poolSubId.address}) to game ${newGame.id}`);
 
-                // Update pool record with game linkage
                 await prisma.subIdPool.update({
                     where: { subIdName: poolSubId.subIdName },
                     data: { usedByGameId: newGame.id },
                 });
 
-                // Replenish pool in background
                 ensurePoolSize().catch(err => console.error('[SubID Pool] Replenish failed:', err.message));
             } else {
-                // Pool empty or disabled — fall back to on-the-fly registration (same as normal mode)
                 console.log('[SubID Pool] No ready SubIDs, falling back to on-the-fly registration');
-
-                await prisma.$executeRaw`INSERT OR IGNORE INTO GameCounter (id, nextGame) VALUES ('singleton', 1)`;
-                const gameNumber = await prisma.$transaction(async (tx) => {
-                    await tx.$executeRaw`UPDATE GameCounter SET nextGame = nextGame + 1 WHERE id = 'singleton'`;
-                    const result = await tx.gameCounter.findUnique({ where: { id: 'singleton' } });
-                    return result!.nextGame - 1; // Pre-increment value
-                });
-                const subIdName = `game${String(gameNumber).padStart(4, '0')}`;
+                const { subIdName } = await nextGameNumber();
 
                 await prisma.gameSession.create({
-                    data: {
-                        gameId: newGame.id,
-                        subIdName,
-                    },
+                    data: { gameId: newGame.id, subIdName },
                 });
 
-                // Fire-and-forget: start SubID registration so it's ready when game ends
-                (async () => {
-                    try {
-                        const axios = require('axios');
-                        const VERUS_RPC_URL = `http://${process.env.VERUS_RPC_USER}:${process.env.VERUS_RPC_PASSWORD}@${process.env.VERUS_RPC_HOST || '127.0.0.1'}:${process.env.VERUS_RPC_PORT || 18843}`;
-                        const parentAddress = process.env.CHESSGAME_IDENTITY_ADDRESS;
-
-                        const commitRes = await axios.post(VERUS_RPC_URL, {
-                            method: 'registernamecommitment',
-                            params: [subIdName, parentAddress, '', parentAddress],
-                            id: 1, jsonrpc: '2.0',
-                        });
-                        if (commitRes.data.error) {
-                            console.log(`[SubID] Commitment for ${subIdName} failed (may already exist):`, commitRes.data.error.message);
-                            return;
-                        }
-                        console.log(`[SubID] Commitment for ${subIdName} submitted:`, commitRes.data.result.txid);
-                    } catch (e: any) {
-                        console.error(`[SubID] Early commitment for ${subIdName} failed:`, e.message);
-                    }
-                })();
+                startEarlyCommitment(subIdName);
             }
         }
 
         const socket = io(process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'http://192.168.0.162:3001');
-        
-        // It's good practice to disconnect after emitting the event
-        // to avoid leaving dangling connections from the serverless function.
+
         socket.on('connect', () => {
             console.log("Socket connected to emit new-game-created");
             socket.emit('new-game-created');
@@ -156,4 +109,4 @@ export async function POST(req: Request) {
         console.error('[GAME_API_CREATE]', error);
         return new NextResponse('Internal Error', { status: 500 });
     }
-} 
+}

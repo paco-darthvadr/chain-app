@@ -17,7 +17,7 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     // Auth: require internal secret to prevent unauthorized SubID registration
-    const secret = process.env.INTERNAL_API_SECRECT;
+    const secret = process.env.INTERNAL_API_SECRET;
     if (secret) {
       const authHeader = req.headers.get('x-api-secret');
       if (authHeader !== secret) {

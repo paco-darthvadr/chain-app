@@ -185,7 +185,7 @@ io.on('connection', (socket) => {
     try {
       const appUrl = process.env.NEXT_PUBLIC_APP_URL;
       const internalHeaders = { 'Content-Type': 'application/json' };
-      if (process.env.INTERNAL_API_SECRECT) internalHeaders['x-internal-api-secret'] = process.env.INTERNAL_API_SECRECT;
+      if (process.env.INTERNAL_API_SECRET) internalHeaders['x-internal-api-secret'] = process.env.INTERNAL_API_SECRET;
 
       const response = await fetch(`${appUrl}/api/game/${gameId}`, { headers: internalHeaders });
       if (!response.ok) throw new Error('Failed to fetch original game data');
@@ -264,7 +264,7 @@ httpServer.listen(PORT, () => {
   // Trigger SubID pool replenishment on startup
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
   const headers = { 'Content-Type': 'application/json' };
-  if (process.env.INTERNAL_API_SECRECT) headers['x-api-secret'] = process.env.INTERNAL_API_SECRECT;
+  if (process.env.INTERNAL_API_SECRET) headers['x-api-secret'] = process.env.INTERNAL_API_SECRET;
   fetch(`${appUrl}/api/pool`, { method: 'POST', headers })
     .then(res => res.json())
     .then(data => console.log('[SubID Pool] Startup replenishment:', data))

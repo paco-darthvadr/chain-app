@@ -1,19 +1,5 @@
-import axios from 'axios';
-import { CHESS_VDXF_KEYS } from './modes/normal/vdxf-keys';
-
-const VERUS_RPC_URL = `http://${process.env.VERUS_RPC_USER}:${process.env.VERUS_RPC_PASSWORD}@${process.env.VERUS_RPC_HOST || '127.0.0.1'}:${process.env.VERUS_RPC_PORT || 18843}`;
-
-const DD_KEY = 'i4GC1YGEVD21afWudGoFJVdnfjJ5XWnCQv';
-
-async function rpcCall(method: string, params: any[] = []): Promise<any> {
-  const response = await axios.post(VERUS_RPC_URL, {
-    method, params, id: 1, jsonrpc: '2.0',
-  });
-  if (response.data.error) {
-    throw new Error(`RPC ${method} error: ${JSON.stringify(response.data.error)}`);
-  }
-  return response.data.result;
-}
+import { CHESS_VDXF_KEYS, DD_KEY } from './modes/normal/vdxf-keys';
+import { rpcCall, buildSubIdFullName } from './verus-rpc';
 
 /**
  * Build a reverse lookup: vdxfid → field name
@@ -99,8 +85,7 @@ async function resolveIdentityName(iAddress: string): Promise<string | null> {
  * Fetch and parse a game's on-chain data from its SubID.
  */
 export async function readGameFromChain(subIdName: string): Promise<OnChainGame | null> {
-  const parentName = process.env.CHESSGAME_IDENTITY_NAME || 'ChessGame@';
-  const fullName = `${subIdName}.${parentName.replace('@', '')}@`;
+  const fullName = buildSubIdFullName(subIdName);
 
   let identityResult;
   try {

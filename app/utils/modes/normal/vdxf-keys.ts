@@ -30,12 +30,20 @@ export const CHESS_VDXF_KEYS = {
   status:       { uri: 'chessgame::game.v1.status',       vdxfid: 'i847veVEmYxjYmUzfGVemAk7y2bAHrViSn' },
 } as const;
 
-/** Helper to hex-encode a string value for contentmultimap */
-export function hexEncode(value: string): string {
-  return Buffer.from(value).toString('hex');
-}
+/** DataDescriptor key i-address (the type marker for DD objects) */
+export const DD_KEY = 'i4GC1YGEVD21afWudGoFJVdnfjJ5XWnCQv';
 
-/** Helper to hex-decode a contentmultimap value */
-export function hexDecode(hex: string): string {
-  return Buffer.from(hex, 'hex').toString();
+/**
+ * Wrap a value as a DataDescriptor for contentmultimap.
+ * The daemon auto-decodes these into readable JSON with labels and MIME types.
+ */
+export function dd(value: string, label: string, mimetype: string = 'text/plain'): object {
+  return {
+    [DD_KEY]: {
+      version: 1,
+      mimetype,
+      objectdata: { message: value },
+      label,
+    }
+  };
 }
