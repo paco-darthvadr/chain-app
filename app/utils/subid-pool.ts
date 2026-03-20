@@ -111,15 +111,17 @@ export async function ensurePoolSize(minSize: number = 5): Promise<void> {
     `[SubID Pool] Need ${needed} more SubIDs (have ${available} ready/registering)`,
   );
 
-  // Fire off background registrations — don't await them
-  for (let i = 0; i < needed; i++) {
-    registerOneSubId().catch((err) => {
-      console.error(
-        '[SubID Pool] Background registration failed:',
-        err.message,
-      );
-    });
-  }
+  // Fire off background registrations sequentially (Verus daemon can't handle
+  // concurrent registernamecommitment calls — they compete for the same UTXOs)
+  (async () => {
+    for (let i = 0; i < needed; i++) {
+      try {
+        await registerOneSubId();
+      } catch (err: any) {
+        console.error('[SubID Pool] Background registration failed:', err.message);
+      }
+    }
+  })();
 }
 
 // ---------------------------------------------------------------------------
