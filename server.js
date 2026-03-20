@@ -182,11 +182,14 @@ io.on('connection', (socket) => {
     // This requires an API call to our own app to get the game details.
     try {
       const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-      const response = await fetch(`${appUrl}/api/game/${gameId}`);
+      const internalHeaders = { 'Content-Type': 'application/json' };
+      if (process.env.INTERNAL_API_SECRECT) internalHeaders['x-internal-api-secret'] = process.env.INTERNAL_API_SECRECT;
+
+      const response = await fetch(`${appUrl}/api/game/${gameId}`, { headers: internalHeaders });
       if (!response.ok) throw new Error('Failed to fetch original game data');
-      
+
       const originalGame = await response.json();
-      
+
       // Swap the players for the new game
       const newGameData = {
         whitePlayerId: originalGame.blackPlayerId,
@@ -197,7 +200,7 @@ io.on('connection', (socket) => {
 
       const createResponse = await fetch(`${appUrl}/api/game`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: internalHeaders,
         body: bodyString,
       });
 

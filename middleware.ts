@@ -31,13 +31,16 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Allow internal requests to /api/game with correct secret header
-  if (
-    pathname === '/api/game' &&
-    request.method === 'POST' &&
-    request.headers.get('x-internal-api-secret') === process.env.INTERNAL_API_SECRET
-  ) {
-    return NextResponse.next();
+  // Allow internal requests from server.js (rematch creates games)
+  // Uses INTERNAL_API_SECRECT env var (note: legacy spelling)
+  {
+    const secret = process.env.INTERNAL_API_SECRECT;
+    const isInternalGameRoute =
+      (pathname === '/api/game' && request.method === 'POST') ||
+      (pathname.match(/^\/api\/game\/[^/]+$/) && request.method === 'GET');
+    if (isInternalGameRoute && (!secret || request.headers.get('x-internal-api-secret') === secret)) {
+      return NextResponse.next();
+    }
   }
 
   const token = request.cookies.get('token')?.value;
