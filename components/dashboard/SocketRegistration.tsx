@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useChallenges } from './ChallengeContext';
 
@@ -18,15 +18,15 @@ function setGlobalSocket(socket: Socket | null) {
 }
 
 export default function SocketRegistration() {
-    const initialized = useRef(false);
     const { addChallenge, removeChallenge, updateChallengerStatus, markOpponentReady } = useChallenges();
 
     useEffect(() => {
         const userId = localStorage.getItem('currentUser');
         if (!userId) return;
 
-        if (initialized.current) return;
-        initialized.current = true;
+        // If a socket already exists and is connected, don't create another
+        const existing = getGlobalSocket();
+        if (existing?.connected) return;
 
         const socketURL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3002';
         const socket = io(socketURL);
