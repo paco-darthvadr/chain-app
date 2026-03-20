@@ -6,20 +6,25 @@ import { Card, CardContent } from '../ui/card';
 import { Piece, Position } from '@/app/models';
 import { GRID_SIZE } from '@/app/Constants';
 import { useState, useEffect } from 'react';
+import { getTheme, LogoMode } from '@/app/utils/board-themes';
 
 interface Props {
     playMove: (piece: Piece, position: Position) => boolean;
     pieces: Piece[];
     bottomColor?: 'white' | 'black';
+    boardTheme?: string;
+    logoMode?: LogoMode;
 }
 
 const verticalAxis = ["1", "2", "3", "4", "5", "6", "7", "8"];
 const horizontalAxis = ["a", "b", "c", "d", "e", "f", "g", "h"];
 
-export default function Chessboard({ pieces, playMove, bottomColor = 'white' }: Props) {
+export default function Chessboard({ pieces, playMove, bottomColor = 'white', boardTheme = 'classic', logoMode = 'off' }: Props) {
     const [selectedPiece, setSelectedPiece] = useState<Piece | null>(null);
     const [validMoves, setValidMoves] = useState<Position[]>([]);
     const [isDragging, setIsDragging] = useState(false);
+
+    const theme = getTheme(boardTheme);
 
     const handlePieceClick = (piece: Piece) => {
         console.log('Piece clicked:', piece.type, piece.team, 'at', piece.position.x, piece.position.y);
@@ -242,16 +247,36 @@ export default function Chessboard({ pieces, playMove, bottomColor = 'white' }: 
             <div>
                 <Card id='boardcard' className='bg-slate-100 dark:bg-slate-800 flex'>
                     <CardContent>
-                    <div 
-                        id="chessboard" 
+                    <div
+                        id="chessboard"
                         style={{
                             display: 'grid',
                             gridTemplateColumns: 'repeat(8, 1fr)',
                             width: GRID_SIZE * 8,
-                            height: GRID_SIZE * 8
-                        }}
+                            height: GRID_SIZE * 8,
+                            '--square-light': theme.lightSquare,
+                            '--square-dark': theme.darkSquare,
+                            position: 'relative',
+                        } as React.CSSProperties}
                     >
                         {board}
+                        {logoMode !== 'off' && (
+                            <img
+                                src="/img/verus-icon-white.svg"
+                                alt=""
+                                style={{
+                                    position: 'absolute',
+                                    top: GRID_SIZE * 3,
+                                    left: GRID_SIZE * 3,
+                                    width: GRID_SIZE * 2,
+                                    height: GRID_SIZE * 2,
+                                    opacity: logoMode === 'faded' ? 0.1 : 0.4,
+                                    pointerEvents: 'none',
+                                    filter: 'drop-shadow(0 0 2px rgba(0,0,0,0.3))',
+                                    zIndex: 1,
+                                }}
+                            />
+                        )}
                     </div>
                     </CardContent>
                 </Card>
