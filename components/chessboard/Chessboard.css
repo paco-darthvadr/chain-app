@@ -16,15 +16,15 @@
 }
 
 #chessboard .black-tile {
-    background-color: #606956;
+    background-color: var(--square-dark, #606956);
 }
 
 #chessboard .white-tile {
-    background-color: #ebecd0;
+    background-color: var(--square-light, #ebecd0);
 }
 
 #chessboard .tile.valid-move {
-    background-color: rgba(0, 255, 0, 0.2);
+    box-shadow: inset 0 0 0 100px rgba(0, 255, 0, 0.2);
 }
 
 #chessboard .piece {
