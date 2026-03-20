@@ -121,6 +121,7 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
   })();
 
   const [showcaseWaitingForOpponent, setShowcaseWaitingForOpponent] = useState(false);
+  const [showcaseWaitTimeout, setShowcaseWaitTimeout] = useState(false);
 
   const handleShowcaseClosingSign = async () => {
     if (!showcaseClosingSig.trim() || !gameSession?.gameHash) return;
@@ -157,7 +158,7 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
     setShowcaseClosingSubmitting(false);
   };
 
-  // Poll for opponent's closing signature
+  // Poll for opponent's closing signature + timeout after 30s
   useEffect(() => {
     if (!showcaseWaitingForOpponent || !isShowcase) return;
     const interval = setInterval(async () => {
@@ -172,7 +173,8 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
         }
       } catch {}
     }, 3000);
-    return () => clearInterval(interval);
+    const timeout = setTimeout(() => setShowcaseWaitTimeout(true), 30000);
+    return () => { clearInterval(interval); clearTimeout(timeout); };
   }, [showcaseWaitingForOpponent, isShowcase, game?.id]);
 
   const moveCount = (() => {
@@ -273,6 +275,20 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
           <div className="text-center space-y-2 py-2">
             <div className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-primary border-r-transparent" />
             <p className="text-sm text-muted-foreground">Your signature submitted. Waiting for opponent to sign...</p>
+            {showcaseWaitTimeout && (
+              <div className="space-y-2 pt-2">
+                <p className="text-xs text-muted-foreground">Opponent hasn&apos;t signed. You can store the game with your signature only.</p>
+                <button
+                  onClick={() => {
+                    setShowcaseWaitingForOpponent(false);
+                    handleVerifyAndStore();
+                  }}
+                  className="w-full px-4 py-2 rounded-md bg-yellow-600 text-white text-sm font-medium hover:bg-yellow-700"
+                >
+                  Store with your signature only
+                </button>
+              </div>
+            )}
           </div>
         )}
         {isShowcase && showcaseClosingDone && !showcaseWaitingForOpponent && blockchainStatus === 'verifying' && (
