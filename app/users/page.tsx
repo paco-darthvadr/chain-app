@@ -161,8 +161,9 @@ function UsersPage() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    whitePlayerId: incomingChallenge.challengerId,
-                    blackPlayerId: currentUserId,
+                    ...(Math.random() < 0.5
+                        ? { whitePlayerId: incomingChallenge.challengerId, blackPlayerId: currentUserId }
+                        : { whitePlayerId: currentUserId, blackPlayerId: incomingChallenge.challengerId }),
                     mode: incomingChallenge.mode || 'normal',
                 }),
             });
