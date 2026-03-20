@@ -36,8 +36,8 @@ export async function GET(request: Request, { params }: { params: { gameId: stri
       include: { whitePlayer: true, blackPlayer: true, gameSession: true },
     });
 
-    if (!game || game.mode !== 'showcase') {
-      return NextResponse.json({ error: 'Not a showcase game' }, { status: 404 });
+    if (!game || (game.mode !== 'showcase' && game.mode !== 'normal')) {
+      return NextResponse.json({ error: 'Game mode does not support signatures' }, { status: 404 });
     }
 
     const commitment = buildCommitment(game);
@@ -70,7 +70,7 @@ export async function POST(request: Request, { params }: { params: { gameId: str
     });
 
     if (!game) return NextResponse.json({ error: 'Game not found' }, { status: 404 });
-    if (game.mode !== 'showcase') return NextResponse.json({ error: 'Not a showcase game' }, { status: 400 });
+    if (game.mode !== 'showcase' && game.mode !== 'normal') return NextResponse.json({ error: 'Game mode does not support signatures' }, { status: 400 });
 
     const session = game.gameSession;
     if (!session) return NextResponse.json({ error: 'No game session' }, { status: 400 });

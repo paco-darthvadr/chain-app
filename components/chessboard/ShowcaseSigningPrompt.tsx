@@ -107,12 +107,31 @@ export default function ShowcaseSigningPrompt({
             : 'Sign the final game hash to confirm the result.'}
         </p>
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Message to sign:</label>
-          <div className="bg-muted p-3 rounded-md font-mono text-xs break-all">
-            {messageToSign}
-          </div>
-        </div>
+        {/* Game summary — show what you're actually signing */}
+        {(() => {
+          try {
+            const data = JSON.parse(messageToSign);
+            return (
+              <div className="text-left text-sm space-y-1 bg-muted p-3 rounded-md">
+                <p className="font-medium text-muted-foreground mb-2">You are signing:</p>
+                {data.white && <div className="flex justify-between"><span className="text-muted-foreground">White:</span><span className="font-medium">{data.white}</span></div>}
+                {data.black && <div className="flex justify-between"><span className="text-muted-foreground">Black:</span><span className="font-medium">{data.black}</span></div>}
+                {data.gameNumber && <div className="flex justify-between"><span className="text-muted-foreground">Game:</span><span className="font-mono text-xs">{data.gameNumber}</span></div>}
+                {data.startedAt && <div className="flex justify-between"><span className="text-muted-foreground">Started:</span><span className="text-xs">{new Date(data.startedAt).toLocaleString()}</span></div>}
+              </div>
+            );
+          } catch {
+            // Not JSON (e.g. closing hash) — show raw
+            return (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Message to sign:</label>
+                <div className="bg-muted p-3 rounded-md font-mono text-xs break-all">
+                  {messageToSign}
+                </div>
+              </div>
+            );
+          }
+        })()}
 
         <div className="space-y-2">
           <label className="text-sm font-medium">Sign command:</label>

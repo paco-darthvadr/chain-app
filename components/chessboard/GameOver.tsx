@@ -23,6 +23,7 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
   const [showcaseClosingSubmitting, setShowcaseClosingSubmitting] = useState(false);
   const [showcaseClosingDone, setShowcaseClosingDone] = useState(false);
   const [showcaseClosingError, setShowcaseClosingError] = useState<string | null>(null);
+  const [closingCopied, setClosingCopied] = useState(false);
 
   const isShowcase = game?.mode === 'showcase';
   const isNormal = game?.mode === 'normal';
@@ -163,7 +164,7 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
 
   // Poll for opponent's closing signature + timeout after 30s
   useEffect(() => {
-    if (!showcaseWaitingForOpponent || !isShowcase) return;
+    if (!showcaseWaitingForOpponent || !hasChainSupport) return;
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`/api/game/${game.id}`);
@@ -239,10 +240,19 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
           </div>
         )}
 
-        {/* Showcase: Closing Signature */}
-        {isShowcase && gameSession?.gameHash && !showcaseClosingDone && blockchainStatus !== 'stored' && (
+        {/* Closing Signature (all chain modes) */}
+        {hasChainSupport && gameSession?.gameHash && !showcaseClosingDone && blockchainStatus !== 'stored' && (
           <div className="space-y-3 border-t border-border pt-4 mt-4 text-left">
             <h4 className="font-medium text-sm">Sign to confirm result</h4>
+            {/* Game summary — what you're signing */}
+            <div className="text-sm space-y-1 bg-muted p-3 rounded-md">
+              <p className="text-muted-foreground font-medium mb-2">You are confirming:</p>
+              <div className="flex justify-between"><span className="text-muted-foreground">White:</span><span className="font-medium">{game?.whitePlayer?.displayName || game?.whitePlayer?.verusId || '?'}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Black:</span><span className="font-medium">{game?.blackPlayer?.displayName || game?.blackPlayer?.verusId || '?'}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Winner:</span><span className="font-medium">{game?.winner === game?.whitePlayerId ? (game?.whitePlayer?.displayName || 'White') : game?.winner === game?.blackPlayerId ? (game?.blackPlayer?.displayName || 'Black') : 'Draw'}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Moves:</span><span className="font-medium">{moveCount}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Game Hash:</span><span className="font-mono text-xs break-all">{gameSession.gameHash.substring(0, 16)}...</span></div>
+            </div>
             <div className="relative">
               <div className="bg-muted p-2 pr-10 rounded font-mono text-xs break-all">
                 verus -chain=VRSCTEST signmessage &quot;{playerVerusId}&quot; &quot;{gameSession.gameHash}&quot;
@@ -250,11 +260,17 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
               <button
                 onClick={() => {
                   navigator.clipboard.writeText(`verus -chain=VRSCTEST signmessage "${playerVerusId}" "${gameSession.gameHash}"`);
+                  setClosingCopied(true);
+                  setTimeout(() => setClosingCopied(false), 2000);
                 }}
                 className="absolute top-1.5 right-1.5 p-1 rounded bg-muted-foreground/10 hover:bg-muted-foreground/20 transition-colors"
                 title="Copy command"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                {closingCopied ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-500"><polyline points="20 6 9 17 4 12"/></svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                )}
               </button>
             </div>
             <textarea
@@ -274,7 +290,7 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
             </button>
           </div>
         )}
-        {isShowcase && showcaseClosingDone && showcaseWaitingForOpponent && (
+        {hasChainSupport && showcaseClosingDone && showcaseWaitingForOpponent && (
           <div className="text-center space-y-2 py-2">
             <div className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-primary border-r-transparent" />
             <p className="text-sm text-muted-foreground">Your signature submitted. Waiting for opponent to sign...</p>
@@ -294,7 +310,7 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
             )}
           </div>
         )}
-        {isShowcase && showcaseClosingDone && !showcaseWaitingForOpponent && blockchainStatus === 'verifying' && (
+        {hasChainSupport && showcaseClosingDone && !showcaseWaitingForOpponent && blockchainStatus === 'verifying' && (
           <div className="text-yellow-600 text-sm py-2">
             <div className="animate-pulse">{blockchainMessage || 'Both signatures received. Storing final record on chain...'}</div>
           </div>
@@ -332,22 +348,7 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
         {/* Blockchain Storage Status (Normal + Showcase) */}
         {hasChainSupport && (
           <div className="space-y-2">
-            {isNormal && blockchainStatus === 'idle' && (
-              <button
-                onClick={handleVerifyAndStore}
-                className="w-full bg-green-600 text-white py-2 px-4 rounded hover:bg-green-700 transition-colors"
-              >
-                Verify & Store on Blockchain
-              </button>
-            )}
-            {isNormal && blockchainStatus === 'verified' && (
-              <button
-                onClick={handleVerifyAndStore}
-                className="w-full bg-green-600 text-white py-2 px-4 rounded hover:bg-green-700 transition-colors"
-              >
-                Store on Blockchain
-              </button>
-            )}
+            {/* Direct store buttons removed — signing flow handles storage */}
             {blockchainStatus === 'pending' && (
               <div className="space-y-2">
                 <div className="text-yellow-600 text-sm py-2 bg-yellow-500/10 rounded p-2 flex items-center gap-2">
