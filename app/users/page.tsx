@@ -13,6 +13,7 @@ let socket: Socket | null = null;
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import BlockchainInfoDialog from '@/components/chessboard/BlockchainInfoDialog';
 import ChallengeModal from '@/components/chessboard/ChallengeModal';
+import { getTheme } from '@/app/utils/board-themes';
 
 interface User {
     id: string;
@@ -240,7 +241,7 @@ function UsersPage() {
                                 <p className="text-amber-400">Mode: Showcase (every move stored on-chain live)</p>
                             )}
                             {incomingChallenge.boardTheme && incomingChallenge.boardTheme !== 'classic' && (
-                                <p>Board: {incomingChallenge.boardTheme.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</p>
+                                <p>Board: {getTheme(incomingChallenge.boardTheme).name}</p>
                             )}
                         </div>
                         <div className="flex justify-center gap-4 mt-6">
