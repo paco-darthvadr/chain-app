@@ -6,14 +6,14 @@ import { useChallenges } from './ChallengeContext';
 
 export function getGlobalSocket(): Socket | null {
     if (typeof window !== 'undefined') {
-        return (window as any).__chessSocket || null;
+        return (window as any).__gameSocket || null;
     }
     return null;
 }
 
 function setGlobalSocket(socket: Socket | null) {
     if (typeof window !== 'undefined') {
-        (window as any).__chessSocket = socket;
+        (window as any).__gameSocket = socket;
     }
 }
 
@@ -37,13 +37,14 @@ export default function SocketRegistration() {
             console.log('[SocketRegistration] Registered user', userId);
         });
 
-        socket.on('new-challenge', ({ challengerId, challengerName, mode, boardTheme, logoMode, challengerStatus }) => {
+        socket.on('new-challenge', ({ challengerId, challengerName, mode, boardTheme, logoMode, challengerStatus, gameType }) => {
             addChallenge({
                 challengerId,
                 challengerName,
                 mode: mode || 'normal',
                 boardTheme: boardTheme || 'classic',
                 logoMode: logoMode || 'off',
+                gameType: gameType || 'chess',
                 challengerStatus: challengerStatus || 'available',
                 timestamp: Date.now(),
                 state: 'incoming',

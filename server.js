@@ -39,7 +39,7 @@ const io = new Server(httpServer, {
 const rooms = {}; // { [roomId]: string[] }
 const userSockets = {}; // { [userId]: Set<socketId> } — supports multiple sockets per user
 const userGameStatus = {}; // { [userId]: 'available' | 'in-game' }
-const pendingChallenges = []; // { challengerId, challengerName, challengeeId, mode, boardTheme, logoMode, timestamp }
+const pendingChallenges = []; // { challengerId, challengerName, challengeeId, mode, boardTheme, logoMode, gameType, timestamp }
 
 function getUserStatus(userId) {
   if (!userSockets[userId] || userSockets[userId].size === 0) return 'offline';
@@ -95,13 +95,14 @@ io.on('connection', (socket) => {
     io.to(roomId).emit('updateUserList', { users: rooms[roomId] });
   });
 
-  socket.on('challenge-user', ({ challengerId, challengerName, challengeeId, mode, boardTheme, logoMode }) => {
+  socket.on('challenge-user', ({ challengerId, challengerName, challengeeId, mode, boardTheme, logoMode, gameType }) => {
     console.log(`Challenge attempt: ${challengerName} (${challengerId}) challenging ${challengeeId}`);
     console.log('Available users:', Object.keys(userSockets));
 
     pendingChallenges.push({
       challengerId, challengerName, challengeeId, mode,
       boardTheme: boardTheme || 'classic', logoMode: logoMode || 'off',
+      gameType: gameType || 'chess',
       timestamp: Date.now()
     });
 
@@ -115,6 +116,7 @@ io.on('connection', (socket) => {
                 mode: mode,
                 boardTheme: boardTheme || 'classic',
                 logoMode: logoMode || 'off',
+                gameType: gameType || 'chess',
                 challengerStatus: getUserStatus(challengerId)
             });
         }
@@ -148,7 +150,7 @@ io.on('connection', (socket) => {
     console.log(`Challenge from ${challengerId} to ${challengeeId} cancelled`);
   });
 
-  socket.on('challenge-accepted-busy', ({ challengerId, acceptorId, acceptorName, mode, boardTheme, logoMode }) => {
+  socket.on('challenge-accepted-busy', ({ challengerId, acceptorId, acceptorName, mode, boardTheme, logoMode, gameType }) => {
     const challengerSockets = userSockets[challengerId];
     if (challengerSockets) {
       for (const sid of challengerSockets) {
@@ -156,6 +158,7 @@ io.on('connection', (socket) => {
           acceptorId, acceptorName, mode,
           boardTheme: boardTheme || 'classic',
           logoMode: logoMode || 'off',
+          gameType: gameType || 'chess',
           acceptorStatus: getUserStatus(acceptorId)
         });
       }
@@ -163,7 +166,7 @@ io.on('connection', (socket) => {
     console.log(`${acceptorName} accepted busy challenge from ${challengerId}`);
   });
 
-  socket.on('start-game', async ({ challengerId, challengeeId, mode, boardTheme, logoMode }) => {
+  socket.on('start-game', async ({ challengerId, challengeeId, mode, boardTheme, logoMode, gameType }) => {
     try {
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
       const internalHeaders = { 'Content-Type': 'application/json' };
@@ -181,6 +184,7 @@ io.on('connection', (socket) => {
           mode: mode || 'normal',
           boardTheme: boardTheme || 'classic',
           logoMode: logoMode || 'off',
+          gameType: gameType || 'chess',
         }),
       });
 
@@ -197,7 +201,7 @@ io.on('connection', (socket) => {
         const sockets = userSockets[userId];
         if (sockets) {
           for (const sid of sockets) {
-            io.to(sid).emit('game-started', { gameId: newGame.id });
+            io.to(sid).emit('game-started', { gameId: newGame.id, gameType: gameType || 'chess' });
           }
         }
       });
@@ -305,6 +309,7 @@ io.on('connection', (socket) => {
         mode: originalGame.mode || 'normal',
         boardTheme: originalGame.boardTheme || 'classic',
         logoMode: originalGame.logoMode || 'off',
+        gameType: originalGame.gameType || 'chess',
       };
       const bodyString = JSON.stringify(newGameData);
       console.log('Rematch newGameData:', newGameData, bodyString);
