@@ -12,6 +12,7 @@ import DashboardLayout from '@/components/dashboard/DashboardLayout';
 let socket: Socket | null = null;
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import BlockchainInfoDialog from '@/components/chessboard/BlockchainInfoDialog';
+import ChallengeModal from '@/components/chessboard/ChallengeModal';
 
 interface User {
     id: string;
@@ -34,8 +35,8 @@ function UsersPage() {
     const [isDeleting, setIsDeleting] = useState(false);
     const [showBlockchainInfo, setShowBlockchainInfo] = useState(false);
     const [hasShownBlockchainInfo, setHasShownBlockchainInfo] = useState(false);
-    const [incomingChallenge, setIncomingChallenge] = useState<{ challengerId: string, challengerName: string, mode?: string } | null>(null);
-    const [selectedMode, setSelectedMode] = useState<string>('normal');
+    const [incomingChallenge, setIncomingChallenge] = useState<{ challengerId: string, challengerName: string, mode?: string, boardTheme?: string, logoMode?: string } | null>(null);
+    const [challengeTarget, setChallengeTarget] = useState<User | null>(null);
     const [challengeSent, setChallengeSent] = useState<string | null>(null); // Store opponentId
     const router = useRouter();
     
@@ -90,10 +91,10 @@ function UsersPage() {
             fetchUsersAndGames(localStorage.getItem('currentUser'));
         });
 
-        socket.on('new-challenge', ({ challengerId, challengerName, mode }) => {
+        socket.on('new-challenge', ({ challengerId, challengerName, mode, boardTheme, logoMode }) => {
             const currentUser = localStorage.getItem('currentUser');
             if (challengerId !== currentUser) {
-                setIncomingChallenge({ challengerId, challengerName, mode });
+                setIncomingChallenge({ challengerId, challengerName, mode, boardTheme, logoMode });
             }
         });
 
@@ -136,9 +137,14 @@ function UsersPage() {
         }
     }, [currentUserId, showBlockchainInfo, hasShownBlockchainInfo]);
 
-    const handleChallenge = async (opponentId: string) => {
+    const handleOpenChallenge = (user: User) => {
         if (!currentUserId) return alert("Please select your user identity first.");
         if (!socket) return alert("Not connected to server. Please wait.");
+        setChallengeTarget(user);
+    };
+
+    const handleConfirmChallenge = ({ mode, boardTheme, logoMode }: { mode: string; boardTheme: string; logoMode: string }) => {
+        if (!currentUserId || !socket || !challengeTarget) return;
 
         const currentUser = users.find(u => u.id === currentUserId);
         if (!currentUser) return alert("Could not find your user data.");
@@ -146,10 +152,13 @@ function UsersPage() {
         socket.emit('challenge-user', {
             challengerId: currentUserId,
             challengerName: currentUser.displayName || currentUser.verusId,
-            challengeeId: opponentId,
-            mode: selectedMode,
+            challengeeId: challengeTarget.id,
+            mode,
+            boardTheme,
+            logoMode,
         });
-        setChallengeSent(opponentId);
+        setChallengeSent(challengeTarget.id);
+        setChallengeTarget(null);
     };
 
     const handleAcceptChallenge = async () => {
@@ -165,6 +174,8 @@ function UsersPage() {
                         ? { whitePlayerId: incomingChallenge.challengerId, blackPlayerId: currentUserId }
                         : { whitePlayerId: currentUserId, blackPlayerId: incomingChallenge.challengerId }),
                     mode: incomingChallenge.mode || 'normal',
+                    boardTheme: incomingChallenge.boardTheme || 'classic',
+                    logoMode: incomingChallenge.logoMode || 'off',
                 }),
             });
 
@@ -224,9 +235,14 @@ function UsersPage() {
                 <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
                     <div className="bg-card p-8 rounded-lg shadow-xl text-center border">
                         <h2 className="text-2xl font-bold mb-2">{incomingChallenge.challengerName} has challenged you!</h2>
-                        {incomingChallenge.mode === 'showcase' && (
-                            <p className="text-sm text-amber-400 mb-4">Mode: Showcase (every move stored on-chain live)</p>
-                        )}
+                        <div className="text-sm text-muted-foreground mb-4 space-y-1">
+                            {incomingChallenge.mode === 'showcase' && (
+                                <p className="text-amber-400">Mode: Showcase (every move stored on-chain live)</p>
+                            )}
+                            {incomingChallenge.boardTheme && incomingChallenge.boardTheme !== 'classic' && (
+                                <p>Board: {incomingChallenge.boardTheme.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</p>
+                            )}
+                        </div>
                         <div className="flex justify-center gap-4 mt-6">
                             <Button onClick={handleAcceptChallenge} disabled={isLoading}>
                                 {isLoading ? "Accepting..." : "Accept"}
@@ -322,17 +338,6 @@ function UsersPage() {
                     {/* Challenge a User */}
                     <div className="w-full md:w-1/3">
                         <h2 className="text-xl font-semibold mb-4 border-b pb-2">Challenge a User</h2>
-                        <div className="flex items-center gap-3 mb-4 p-3 bg-muted/50 rounded-lg">
-                            <label className="text-sm font-medium whitespace-nowrap">Game Mode:</label>
-                            <select
-                                value={selectedMode}
-                                onChange={(e) => setSelectedMode(e.target.value)}
-                                className="flex-1 px-3 py-1.5 rounded-md border bg-background text-sm"
-                            >
-                                <option value="normal">Normal</option>
-                                <option value="showcase">Showcase (Live On-Chain)</option>
-                            </select>
-                        </div>
                         <div className="flex flex-col gap-4">
                             {users.filter(u => u.id !== currentUserId).length > 0 ? (
                                 users.filter(u => u.id !== currentUserId).map(user => (
@@ -347,8 +352,8 @@ function UsersPage() {
                                                 <p className="text-xs text-muted-foreground font-mono">{user.verusId}</p>
                                             </div>
                                         </div>
-                                        <Button 
-                                            onClick={() => handleChallenge(user.id)} 
+                                        <Button
+                                            onClick={() => handleOpenChallenge(user)}
                                             disabled={isLoading || isDeleting || challengeSent === user.id || !!incomingChallenge}
                                         >
                                             {challengeSent === user.id ? 'Sent' : 'Challenge'}
@@ -364,6 +369,13 @@ function UsersPage() {
                     </div>
                 </div>
             </div>
+            {challengeTarget && (
+                <ChallengeModal
+                    targetUser={challengeTarget}
+                    onConfirm={handleConfirmChallenge}
+                    onClose={() => setChallengeTarget(null)}
+                />
+            )}
         </DashboardLayout>
     );
 }
