@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { useChallenges, Challenge } from './ChallengeContext';
 import { getGlobalSocket } from './SocketRegistration';
 import { getTheme } from '@/app/utils/board-themes';
+import { getGameConfig } from '@/app/games/registry';
 
 function StatusDot({ status }: { status: string }) {
   const color = status === 'available' ? 'bg-green-500'
@@ -39,6 +40,7 @@ function ChallengeItem({ challenge, currentUserId }: { challenge: Challenge; cur
         mode: challenge.mode,
         boardTheme: challenge.boardTheme,
         logoMode: challenge.logoMode,
+        gameType: challenge.gameType || 'chess',
       });
       removeChallenge(challenge.challengerId);
     } else {
@@ -50,6 +52,7 @@ function ChallengeItem({ challenge, currentUserId }: { challenge: Challenge; cur
         mode: challenge.mode,
         boardTheme: challenge.boardTheme,
         logoMode: challenge.logoMode,
+        gameType: challenge.gameType || 'chess',
       });
       markAcceptedWaiting(challenge.challengerId);
     }
@@ -82,6 +85,7 @@ function ChallengeItem({ challenge, currentUserId }: { challenge: Challenge; cur
       mode: challenge.mode,
       boardTheme: challenge.boardTheme,
       logoMode: challenge.logoMode,
+      gameType: challenge.gameType || 'chess',
     });
     removeChallenge(challenge.challengerId);
   };
@@ -98,6 +102,8 @@ function ChallengeItem({ challenge, currentUserId }: { challenge: Challenge; cur
           <span className="text-xs text-muted-foreground">{timeAgo(challenge.timestamp)}</span>
         </div>
         <p className="text-xs text-muted-foreground mb-2">
+          {challenge.gameType ? getGameConfig(challenge.gameType).displayName : 'Chess'}
+          {' · '}
           {challenge.mode === 'showcase' ? 'Showcase' : 'Normal'}
           {challenge.boardTheme !== 'classic' && ` · ${themeName}`}
         </p>
@@ -115,12 +121,19 @@ function ChallengeItem({ challenge, currentUserId }: { challenge: Challenge; cur
   }
 
   if (challenge.state === 'sent') {
+    const sentThemeName = getTheme(challenge.boardTheme).name;
     return (
       <div className="p-3 border-b last:border-b-0">
         <div className="flex items-center justify-between mb-1">
           <span className="text-sm">Sent to <span className="font-medium">{challenge.challengerName}</span></span>
           <span className="text-xs text-muted-foreground">{timeAgo(challenge.timestamp)}</span>
         </div>
+        <p className="text-xs text-muted-foreground mb-2">
+          {challenge.gameType ? getGameConfig(challenge.gameType).displayName : 'Chess'}
+          {' · '}
+          {challenge.mode === 'showcase' ? 'Showcase' : 'Normal'}
+          {challenge.boardTheme !== 'classic' && ` · ${sentThemeName}`}
+        </p>
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={handleCancel}>Cancel</Button>
         </div>

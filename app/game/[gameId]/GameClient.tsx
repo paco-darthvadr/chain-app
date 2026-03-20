@@ -3,7 +3,7 @@
 import Chessboard from '@/app/games/chess/Board';
 import MoveHistory from '@/app/games/chess/MoveHistory';
 import PromotionDialog from '@/app/games/chess/PromotionDialog';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { Piece } from '@/app/games/chess/models/Piece';
 import { Position } from '@/app/games/chess/models/Position';
@@ -20,6 +20,7 @@ import { useRouter } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import SubIdStatus from '@/components/game/SubIdStatus';
 import ShowcaseSigningPrompt from '@/components/game/ShowcaseSigningPrompt';
+import { getGameConfig } from '@/app/games/registry';
 
 interface Move {
     piece: string;
@@ -49,7 +50,240 @@ function createBoardFromState(state: any): Board {
     return new Board(hydratedPieces, state.totalTurns, hydratedCapturedPieces);
 }
 
+// ---------------------------------------------------------------------------
+// GenericGameClient — renders any non-chess game using the registry's board
+// ---------------------------------------------------------------------------
+function GenericGameClient({ game }: { game: any }) {
+    const gameType = game.gameType || 'chess';
+    const config = getGameConfig(gameType);
+    const BoardComponent = config.BoardComponent;
+
+    const [gameState, setGameState] = useState(game);
+    const [boardState, setBoardState] = useState(game.boardState);
+    const [currentPlayer, setCurrentPlayer] = useState<1 | 2 | null>(null);
+    const [gameResult, setGameResult] = useState<string | null>(null);
+    const [socket, setSocket] = useState<Socket | null>(null);
+    const router = useRouter();
+    const hasUpdatedGameStatus = useRef(false);
+
+    const playerVerusId = typeof window !== 'undefined'
+        ? localStorage.getItem('currentUser') || '' : '';
+
+    // Determine if current user is player 1 or 2
+    useEffect(() => {
+        if (playerVerusId && game) {
+            if (game.player1Id === playerVerusId) setCurrentPlayer(1);
+            else if (game.player2Id === playerVerusId) setCurrentPlayer(2);
+        }
+    }, [playerVerusId, game]);
+
+    // Socket connection
+    useEffect(() => {
+        const socketURL = process.env.NEXT_PUBLIC_SOCKET_URL;
+        const newSocket = io(socketURL);
+        setSocket(newSocket);
+
+        if (playerVerusId) {
+            newSocket.emit('register-user', playerVerusId);
+        }
+        newSocket.emit('joinGameRoom', game.id);
+
+        newSocket.on('update-board-state', (newBoardState: any) => {
+            if (gameResult) return;
+            setBoardState(newBoardState);
+            setGameState((prev: any) => ({ ...prev, boardState: newBoardState }));
+
+            // Check if the received state ends the game
+            const status = config.getGameStatus(newBoardState);
+            if (status.isOver && !hasUpdatedGameStatus.current) {
+                hasUpdatedGameStatus.current = true;
+                setGameResult(status.resultDisplay);
+            }
+
+            try {
+                new Audio('/sounds/move.mp3').play();
+            } catch (_) { /* ignore */ }
+        });
+
+        newSocket.on('opponent-resigned', async () => {
+            if (!hasUpdatedGameStatus.current) {
+                const updatedGame = await getGame(game.id);
+                if (updatedGame && updatedGame.status === 'COMPLETED') {
+                    hasUpdatedGameStatus.current = true;
+                    setGameState(updatedGame);
+                    setGameResult('resignation');
+                }
+            }
+        });
+
+        newSocket.on('rematch-offered', () => {
+            // TODO: generic rematch UI
+        });
+
+        newSocket.on('rematch-confirmed', ({ newGameId }: { newGameId: string }) => {
+            router.push(`/game/${newGameId}`);
+        });
+
+        return () => {
+            newSocket.emit('leave-game', { gameId: game.id });
+            newSocket.disconnect();
+        };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [game.id, playerVerusId]);
+
+    // Check for completed game on mount
+    useEffect(() => {
+        if (gameState.status === 'COMPLETED' && !gameResult) {
+            const status = config.getGameStatus(boardState);
+            if (status.isOver) {
+                setGameResult(status.resultDisplay);
+            } else {
+                setGameResult('Game over');
+            }
+        }
+    }, [gameState.status, boardState, config, gameResult]);
+
+    // Handle move
+    const handleMove = useCallback(async (move: string, newBoardState: any) => {
+        if (gameResult) return;
+        setBoardState(newBoardState);
+
+        // Save to DB
+        const result = await updateGame(game.id, newBoardState, {
+            move,
+            player: playerVerusId,
+        });
+
+        // Emit to opponent
+        if (socket) {
+            socket.emit('move-made', {
+                gameId: game.id,
+                boardState: newBoardState,
+                signedPackage: (result as any)?.signedPackage || null,
+            });
+        }
+
+        // Check game over
+        const status = config.getGameStatus(newBoardState);
+        if (status.isOver && !hasUpdatedGameStatus.current) {
+            hasUpdatedGameStatus.current = true;
+            const winningPlayer = status.winner || 'DRAW';
+            await endGame(game.id, winningPlayer);
+            setGameResult(status.resultDisplay);
+        }
+    }, [socket, playerVerusId, game.id, config, gameResult]);
+
+    const handleResign = async () => {
+        if (!socket || !currentPlayer || gameResult) return;
+        const confirmResign = window.confirm('Are you sure you want to resign?');
+        if (!confirmResign) return;
+
+        const winningPlayer: 1 | 2 = currentPlayer === 1 ? 2 : 1;
+        const updatedGame = await endGame(game.id, winningPlayer);
+        if (updatedGame) {
+            setGameState(updatedGame);
+            setGameResult(`${currentPlayer === 1 ? config.player1Label : config.player2Label} resigned`);
+            socket.emit('player-resigned', { gameId: game.id, resignerId: playerVerusId });
+        }
+    };
+
+    // Player selection screen if not identified yet
+    if (!currentPlayer) {
+        return (
+            <div className="flex justify-center items-center h-screen bg-background text-foreground">
+                <div className="w-full max-w-lg p-8 bg-card rounded-xl shadow-lg border">
+                    <h2 className="text-2xl font-bold mb-4 text-center">Who is Playing?</h2>
+                    <p className="text-muted-foreground mb-6 text-center">
+                        Select your profile to begin the game.
+                    </p>
+                    <div className="flex justify-around gap-4">
+                        {[gameState.player1, gameState.player2].map((player: any, index: number) => (
+                            <button
+                                key={player.id}
+                                onClick={() => setCurrentPlayer(index === 0 ? 1 : 2)}
+                                className="flex flex-col items-center gap-3 p-6 rounded-lg border hover:bg-muted w-1/2"
+                            >
+                                <p className="font-bold text-lg">{player.displayName || player.verusId}</p>
+                                <p className="text-sm text-muted-foreground">
+                                    ({index === 0 ? config.player1Label : config.player2Label})
+                                </p>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // Map numeric player to 'white'|'black' for GameOver compatibility
+    const currentPlayerColor: 'white' | 'black' = currentPlayer === 1 ? 'white' : 'black';
+
+    return (
+        <div className="flex flex-col md:flex-row gap-4 p-4 max-w-7xl mx-auto">
+            {gameResult && (
+                <GameOver
+                    game={gameState}
+                    winnerName={gameResult}
+                    onRematch={() => {
+                        if (socket) {
+                            const opponentId = currentPlayer === 1 ? game.player2?.id : game.player1?.id;
+                            socket.emit('rematch-offer', { gameId: game.id, opponentId });
+                        }
+                    }}
+                    rematchOffered={false}
+                    currentPlayer={currentPlayerColor}
+                />
+            )}
+            <div className="md:w-auto">
+                <div className="flex flex-row items-center justify-center gap-8 mx-auto">
+                    <div className="flex flex-col items-center gap-4">
+                        <Suspense fallback={<div>Loading board...</div>}>
+                            <BoardComponent
+                                boardState={boardState}
+                                currentPlayer={currentPlayer}
+                                onMove={handleMove}
+                                boardTheme={gameState.boardTheme || 'classic'}
+                                logoMode={gameState.logoMode || 'off'}
+                                disabled={!!gameResult}
+                            />
+                        </Suspense>
+                        {!gameResult && (
+                            <Button variant="destructive" size="sm" onClick={handleResign}>
+                                Resign
+                            </Button>
+                        )}
+                    </div>
+                </div>
+            </div>
+            {config.SidebarComponent && (
+                <div className="flex flex-row gap-6 ml-auto" style={{ minWidth: '320px', maxWidth: '400px' }}>
+                    <div style={{ width: '320px' }}>
+                        <SubIdStatus gameId={gameState.id} mode={(gameState as any).mode || 'original'} />
+                        <Suspense fallback={null}>
+                            <config.SidebarComponent
+                                boardState={boardState}
+                                moves={[]}
+                                currentPlayer={currentPlayer}
+                            />
+                        </Suspense>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// GameClient — the main chess-specific client (unchanged below this point)
+// ---------------------------------------------------------------------------
 const GameClient = ({ game }: GameClientProps) => {
+    const gameType = game.gameType || 'chess';
+
+    // For non-chess games, use the generic board from the registry
+    if (gameType !== 'chess') {
+        return <GenericGameClient game={game} />;
+    }
+
     const [gameState, setGameState] = useState(game);
     const [board, setBoard] = useState<Board | null>(null);
     const [moves, setMoves] = useState<Move[]>([]);
