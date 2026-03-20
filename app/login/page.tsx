@@ -17,6 +17,7 @@ const Login = () => {
   const [loginVerified, setLoginVerified] = useState(false);
 
   // --- CLI Mode State ---
+  const [cliCopied, setCliCopied] = useState(false);
   const [cliChallenge, setCliChallenge] = useState<{ challengeId: string; challenge: string } | null>(null);
   const [cliLoading, setCliLoading] = useState(false);
   const [cliError, setCliError] = useState<string | null>(null);
@@ -181,11 +182,17 @@ const Login = () => {
                       onClick={() => {
                         const cmd = `verus -chain=VRSCTEST signmessage "${verusIdDisplay}" "${cliChallenge.challenge}"`;
                         navigator.clipboard.writeText(cmd);
+                        setCliCopied(true);
+                        setTimeout(() => setCliCopied(false), 2000);
                       }}
                       className="absolute top-2 right-2 p-1.5 rounded bg-muted-foreground/10 hover:bg-muted-foreground/20 transition-colors"
                       title="Copy command"
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                      {cliCopied ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-500"><polyline points="20 6 9 17 4 12"/></svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                      )}
                     </button>
                   </div>
                 </div>

@@ -44,6 +44,17 @@ export async function POST(request: Request, { params }: { params: { gameId: str
 
         const handler = getModeHandler(gameForMode.mode);
 
+        // Check if SubID is ready before attempting store
+        const session = await prisma.gameSession.findUnique({ where: { gameId: params.gameId } });
+        if (session?.subIdName && !session.subIdAddress) {
+            // SubID was assigned but not yet confirmed on chain
+            return NextResponse.json({
+                success: false,
+                pending: true,
+                error: `Game SubID (${session.subIdName}) hasn't been confirmed on chain yet. Please wait for it to be mined.`,
+            }, { status: 202 });
+        }
+
         // Run game-end verification first
         const endResult = await handler.onGameEnd(gameForMode);
         if (!endResult || !endResult.verified) {

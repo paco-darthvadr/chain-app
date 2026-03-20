@@ -13,7 +13,7 @@ interface GameOverProps {
 }
 
 const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematchOffered, currentPlayer }) => {
-  const [blockchainStatus, setBlockchainStatus] = useState<'idle' | 'verifying' | 'verified' | 'storing' | 'stored' | 'failed'>(
+  const [blockchainStatus, setBlockchainStatus] = useState<'idle' | 'verifying' | 'verified' | 'storing' | 'stored' | 'failed' | 'pending'>(
     game?.blockchainTxId && game.blockchainTxId !== 'PROCESSING' ? 'stored' : 'idle'
   );
   const [blockchainMessage, setBlockchainMessage] = useState('');
@@ -105,6 +105,9 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
         if (data.transactionId) {
           setBlockchainMessage(prev => prev + ` | TX: ${data.transactionId.substring(0, 16)}...`);
         }
+      } else if (data.pending) {
+        setBlockchainStatus('pending');
+        setBlockchainMessage(data.error || 'SubID not confirmed yet. Please wait...');
       } else {
         setBlockchainStatus('failed');
         setBlockchainMessage(data.error || 'Storage failed');
@@ -344,6 +347,20 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
               >
                 Store on Blockchain
               </button>
+            )}
+            {blockchainStatus === 'pending' && (
+              <div className="space-y-2">
+                <div className="text-yellow-600 text-sm py-2 bg-yellow-500/10 rounded p-2 flex items-center gap-2">
+                  <div className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-yellow-600 border-r-transparent flex-shrink-0" />
+                  {blockchainMessage}
+                </div>
+                <button
+                  onClick={handleVerifyAndStore}
+                  className="w-full bg-green-600 text-white py-2 px-4 rounded hover:bg-green-700 transition-colors text-sm"
+                >
+                  Retry
+                </button>
+              </div>
             )}
             {blockchainStatus === 'stored' && (
               <div className="text-green-600 text-sm py-2 bg-green-500/10 rounded p-2">
