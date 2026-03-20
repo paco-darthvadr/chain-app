@@ -226,8 +226,13 @@ export default function CheckersBoard({
   // -----------------------------------------------------------------------
   const tiles: React.ReactNode[] = [];
 
-  for (let row = 0; row < BOARD_SIZE; row++) {
-    for (let col = 0; col < BOARD_SIZE; col++) {
+  // Flip board: Player 1 (Red) sees red at bottom, Player 2 (Black) sees black at bottom
+  const flipBoard = currentPlayer === 1;
+
+  for (let displayRow = 0; displayRow < BOARD_SIZE; displayRow++) {
+    for (let displayCol = 0; displayCol < BOARD_SIZE; displayCol++) {
+      const row = flipBoard ? (BOARD_SIZE - 1 - displayRow) : displayRow;
+      const col = flipBoard ? (BOARD_SIZE - 1 - displayCol) : displayCol;
       const isDark = (row + col) % 2 === 1;
       const piece = livePieces.find(p => p.row === row && p.col === col);
       const isTarget = validTargets.some(t => t.row === row && t.col === col);
