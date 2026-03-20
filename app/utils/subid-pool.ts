@@ -134,7 +134,7 @@ export async function ensurePoolSize(minSize: number = 5): Promise<void> {
  */
 async function waitForConfirmation(
   txid: string,
-  maxWait: number = 120000,
+  maxWait: number = 300000,
 ): Promise<boolean> {
   const start = Date.now();
   while (Date.now() - start < maxWait) {
@@ -207,10 +207,10 @@ export async function registerOneSubId(): Promise<void> {
     });
 
     // 5. Wait for confirmation
-    const confirmed = await waitForConfirmation(commitment.txid, 120000);
+    const confirmed = await waitForConfirmation(commitment.txid);
     if (!confirmed) {
       throw new Error(
-        `Commitment ${commitment.txid} not confirmed after 120 s`,
+        `Commitment ${commitment.txid} not confirmed after 300 s`,
       );
     }
 
