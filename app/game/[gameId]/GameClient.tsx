@@ -615,6 +615,12 @@ const GameClient = ({ game }: GameClientProps) => {
             messageToSign={showcaseMessage}
             onSigned={showcaseOnSigned}
             onBothSigned={showcaseOnBothSigned}
+            onLeave={() => {
+              if (socket) {
+                socket.emit('leave-game', { gameId: gameState.id });
+              }
+              router.push('/dashboard');
+            }}
           />
         )}
         <div className="flex flex-col md:flex-row gap-4 p-4 max-w-7xl mx-auto">

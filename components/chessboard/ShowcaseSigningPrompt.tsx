@@ -10,10 +10,11 @@ interface ShowcaseSigningPromptProps {
   messageToSign: string;
   onSigned: () => void;
   onBothSigned?: () => void;
+  onLeave?: () => void;
 }
 
 export default function ShowcaseSigningPrompt({
-  gameId, player, playerVerusId, phase, messageToSign, onSigned, onBothSigned,
+  gameId, player, playerVerusId, phase, messageToSign, onSigned, onBothSigned, onLeave,
 }: ShowcaseSigningPromptProps) {
   const [signature, setSignature] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -158,6 +159,15 @@ export default function ShowcaseSigningPrompt({
             className="w-full px-4 py-2 rounded-md bg-primary text-primary-foreground font-medium disabled:opacity-50"
           >
             {submitting ? 'Verifying...' : 'Submit Signature'}
+          </button>
+        )}
+
+        {onLeave && (
+          <button
+            onClick={onLeave}
+            className="w-full px-4 py-2 rounded-md border border-border text-muted-foreground text-sm hover:bg-muted transition-colors"
+          >
+            Leave Game
           </button>
         )}
       </div>
