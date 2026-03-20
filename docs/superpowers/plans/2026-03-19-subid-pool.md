@@ -8,6 +8,10 @@
 
 **Tech Stack:** Prisma/SQLite, Verus RPC (registernamecommitment, registeridentity, getidentity), Next.js API routes
 
+**Scope:** Pool is for **showcase mode only**. Normal mode registers SubIDs at game creation and stores data at game end (minutes/hours later) — plenty of time for mining. Showcase needs SubIDs instantly for per-move chain updates.
+
+**Env Toggle:** `SUBID_POOL_ENABLED=true` (default: treat as `true` if unset). Set to `false` to disable pool and fall back to on-the-fly registration.
+
 **Spec:** See `docs/superpowers/specs/2026-03-19-showcase-mode-design.md` for showcase mode context
 
 ---
@@ -45,12 +49,14 @@ model SubIdPool {
 - Create: `app/utils/subid-pool.ts`
 
 This module:
-1. `getPoolStatus()` — returns count of ready/registering/used SubIDs
-2. `popReadySubId()` — atomically claims the lowest-numbered 'ready' SubID, marks as 'used', returns it
-3. `ensurePoolSize(minSize = 5)` — checks how many 'ready' + 'registering' SubIDs exist. If fewer than minSize, kicks off background registration for the difference.
-4. `registerOneSubId()` — picks the next game number from GameCounter, does the full two-step registration (registernamecommitment → wait → registeridentity), updates SubIdPool status from 'registering' to 'ready'.
+1. `isPoolEnabled()` — returns `true` unless `SUBID_POOL_ENABLED` is explicitly `'false'`
+2. `getPoolStatus()` — returns count of ready/registering/used SubIDs
+3. `popReadySubId()` — atomically claims the lowest-numbered 'ready' SubID, marks as 'used', returns it. Returns `null` if pool empty or disabled.
+4. `ensurePoolSize(minSize = 5)` — checks how many 'ready' + 'registering' SubIDs exist. If fewer than minSize, kicks off background registration for the difference. No-op if pool disabled.
+5. `registerOneSubId()` — picks the next game number from GameCounter, does the full two-step registration (registernamecommitment → wait → registeridentity), updates SubIdPool status from 'registering' to 'ready'.
 
 Key details:
+- All public functions check `isPoolEnabled()` first — if disabled, `popReadySubId` returns null, `ensurePoolSize` is a no-op
 - Uses the existing `GameCounter` singleton for sequential numbering (shared with normal mode)
 - `popReadySubId` must be atomic — use Prisma's `updateMany` with `where: { status: 'ready' }` + `orderBy: { gameNumber: 'asc' }` + `take: 1`
 - `registerOneSubId` runs the same RPC calls as `createGameSubId` in `subid-storage.ts` but updates SubIdPool instead of GameSession
@@ -66,16 +72,20 @@ Key details:
 **Files:**
 - Modify: `app/api/game/route.ts`
 
+**Showcase mode only.** Normal mode keeps its current behavior unchanged (increment counter, fire-and-forget commitment, store at game end).
+
 Currently for showcase mode, the route:
 1. Increments GameCounter
 2. Creates GameSession with subIdName
 3. Fire-and-forget registernamecommitment
 
-Change to:
-1. Call `popReadySubId()` from the pool
-2. If a ready SubID is available: use its `subIdName` and `address` for the GameSession (SubID already exists on-chain!)
-3. If pool is empty: fall back to the current behavior (increment counter, fire-and-forget commitment)
+Change showcase branch to:
+1. Call `popReadySubId()` from the pool (returns null if pool disabled or empty)
+2. If a ready SubID is available: use its `subIdName`, `gameNumber`, and `address` for the GameSession (SubID already exists on-chain!)
+3. If pool returns null: fall back to the current behavior (increment counter, fire-and-forget commitment)
 4. After popping, call `ensurePoolSize()` in background to replenish
+
+Normal mode branch stays exactly as-is.
 
 - [ ] Update the showcase branch in POST /api/game
 - [ ] Commit
