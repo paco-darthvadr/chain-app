@@ -37,6 +37,8 @@ model Game {
   status     String   @default("IN_PROGRESS") // e.g., IN_PROGRESS, COMPLETED, ABORTED
   winner     String? // 'WHITE', 'BLACK', 'DRAW'
   mode       String   @default("original") // "original", "normal", "showcase"
+  boardTheme String   @default("classic")  // board color theme id
+  logoMode   String   @default("off")      // "off" | "faded" | "centered"
 
   // Blockchain storage tracking
   blockchainTxId      String? // Transaction ID on Verus blockchain
