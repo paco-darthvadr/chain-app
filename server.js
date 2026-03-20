@@ -38,6 +38,27 @@ const io = new Server(httpServer, {
 
 const rooms = {}; // { [roomId]: string[] }
 const userSockets = {}; // { [userId]: Set<socketId> } — supports multiple sockets per user
+const userGameStatus = {}; // { [userId]: 'available' | 'in-game' }
+const pendingChallenges = []; // { challengerId, challengerName, challengeeId, mode, boardTheme, logoMode, timestamp }
+
+function getUserStatus(userId) {
+  if (!userSockets[userId] || userSockets[userId].size === 0) return 'offline';
+  return userGameStatus[userId] || 'available';
+}
+
+function notifyStatusChange(userId) {
+  const status = getUserStatus(userId);
+  pendingChallenges.forEach(c => {
+    const notifyId = c.challengerId === userId ? c.challengeeId : c.challengerId;
+    if (notifyId === userId) return;
+    const notifySockets = userSockets[notifyId];
+    if (notifySockets) {
+      for (const sid of notifySockets) {
+        io.to(sid).emit('user-status-changed', { userId, status });
+      }
+    }
+  });
+}
 
 io.on('connection', (socket) => {
   console.log(`A user connected: ${socket.id}`);
@@ -78,6 +99,12 @@ io.on('connection', (socket) => {
     console.log(`Challenge attempt: ${challengerName} (${challengerId}) challenging ${challengeeId}`);
     console.log('Available users:', Object.keys(userSockets));
 
+    pendingChallenges.push({
+      challengerId, challengerName, challengeeId, mode,
+      boardTheme: boardTheme || 'classic', logoMode: logoMode || 'off',
+      timestamp: Date.now()
+    });
+
     const challengeeSockets = userSockets[challengeeId];
     if (challengeeSockets && challengeeSockets.size > 0) {
         console.log(`Sending challenge to ${challengeeId} on ${challengeeSockets.size} socket(s)`);
@@ -87,7 +114,8 @@ io.on('connection', (socket) => {
                 challengerName: challengerName,
                 mode: mode,
                 boardTheme: boardTheme || 'classic',
-                logoMode: logoMode || 'off'
+                logoMode: logoMode || 'off',
+                challengerStatus: getUserStatus(challengerId)
             });
         }
     } else {
@@ -96,22 +124,89 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('challenge-accepted', ({ challengerId, gameId }) => {
+  socket.on('challenge-declined', ({ challengerId, declinerName }) => {
+      const idx = pendingChallenges.findIndex(c => c.challengerId === challengerId && c.challengeeId === socket.userId);
+      if (idx !== -1) pendingChallenges.splice(idx, 1);
+
       const challengerSockets = userSockets[challengerId];
       if (challengerSockets) {
           for (const sid of challengerSockets) {
-              io.to(sid).emit('game-started', { gameId });
+              io.to(sid).emit('challenge-denied', { challengerId, declinerName });
           }
       }
   });
 
-  socket.on('challenge-declined', ({ challengerId, declinerName }) => {
-      const challengerSockets = userSockets[challengerId];
-      if (challengerSockets) {
-          for (const sid of challengerSockets) {
-              io.to(sid).emit('challenge-denied', { declinerName });
-          }
+  socket.on('challenge-cancel', ({ challengerId, challengeeId }) => {
+    const idx = pendingChallenges.findIndex(c => c.challengerId === challengerId && c.challengeeId === challengeeId);
+    if (idx !== -1) pendingChallenges.splice(idx, 1);
+    const targetSockets = userSockets[challengeeId];
+    if (targetSockets) {
+      for (const sid of targetSockets) {
+        io.to(sid).emit('challenge-cancelled', { challengerId });
       }
+    }
+    console.log(`Challenge from ${challengerId} to ${challengeeId} cancelled`);
+  });
+
+  socket.on('challenge-accepted-busy', ({ challengerId, acceptorId, acceptorName, mode, boardTheme, logoMode }) => {
+    const challengerSockets = userSockets[challengerId];
+    if (challengerSockets) {
+      for (const sid of challengerSockets) {
+        io.to(sid).emit('ready-to-play', {
+          acceptorId, acceptorName, mode,
+          boardTheme: boardTheme || 'classic',
+          logoMode: logoMode || 'off',
+          acceptorStatus: getUserStatus(acceptorId)
+        });
+      }
+    }
+    console.log(`${acceptorName} accepted busy challenge from ${challengerId}`);
+  });
+
+  socket.on('start-game', async ({ challengerId, challengeeId, mode, boardTheme, logoMode }) => {
+    try {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      const internalHeaders = { 'Content-Type': 'application/json' };
+      if (process.env.INTERNAL_API_SECRET) internalHeaders['x-internal-api-secret'] = process.env.INTERNAL_API_SECRET;
+
+      const [white, black] = Math.random() < 0.5
+        ? [challengerId, challengeeId]
+        : [challengeeId, challengerId];
+
+      const createResponse = await fetch(`${appUrl}/api/game`, {
+        method: 'POST',
+        headers: internalHeaders,
+        body: JSON.stringify({
+          whitePlayerId: white, blackPlayerId: black,
+          mode: mode || 'normal',
+          boardTheme: boardTheme || 'classic',
+          logoMode: logoMode || 'off',
+        }),
+      });
+
+      if (!createResponse.ok) throw new Error('Failed to create game');
+      const newGame = await createResponse.json();
+
+      const idx = pendingChallenges.findIndex(c =>
+        (c.challengerId === challengerId && c.challengeeId === challengeeId) ||
+        (c.challengerId === challengeeId && c.challengeeId === challengerId)
+      );
+      if (idx !== -1) pendingChallenges.splice(idx, 1);
+
+      [challengerId, challengeeId].forEach(userId => {
+        const sockets = userSockets[userId];
+        if (sockets) {
+          for (const sid of sockets) {
+            io.to(sid).emit('game-started', { gameId: newGame.id });
+          }
+        }
+      });
+
+      console.log(`Game ${newGame.id} created from start-game (${challengerId} vs ${challengeeId})`);
+    } catch (error) {
+      console.error('Error creating game from start-game:', error);
+      socket.emit('challenge-failed', { message: 'Could not create the game. Please try again.' });
+    }
   });
 
   socket.on('sendMessage', ({ roomId, message }) => {
@@ -120,6 +215,10 @@ io.on('connection', (socket) => {
 
   socket.on('joinGameRoom', (gameId) => {
     socket.join(gameId);
+    if (socket.userId) {
+      userGameStatus[socket.userId] = 'in-game';
+      notifyStatusChange(socket.userId);
+    }
     console.log(`User ${socket.id} joined game room ${gameId}`);
   });
 
@@ -154,6 +253,8 @@ io.on('connection', (socket) => {
         console.log(`User ${socket.userId} left game ${gameId}`);
         // Notify the other player in the room
         socket.to(gameId).emit('opponent-left', { leaverId: socket.userId });
+        userGameStatus[socket.userId] = 'available';
+        notifyStatusChange(socket.userId);
     }
   });
 
@@ -255,6 +356,12 @@ io.on('connection', (socket) => {
             delete userSockets[socket.userId];
         }
         console.log(`Socket ${socket.id} removed for user ${socket.userId}`);
+    }
+    if (socket.userId) {
+      notifyStatusChange(socket.userId);
+      if (userSockets[socket.userId] === undefined) {
+        delete userGameStatus[socket.userId];
+      }
     }
     console.log(`A user disconnected: ${socket.id}`);
   });
