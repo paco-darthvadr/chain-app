@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { initialPieces } from '@/app/lib/initialPieces';
+import { initialPieces } from '@/app/games/chess/constants';
 import { io } from "socket.io-client";
 import { popReadySubId, ensurePoolSize } from '@/app/utils/subid-pool';
 import { nextGameNumber } from '@/app/utils/game-counter';

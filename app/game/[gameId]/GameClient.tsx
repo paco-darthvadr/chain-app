@@ -1,17 +1,17 @@
 'use client';
 
-import Chessboard from '../../../components/chessboard/Chessboard';
-import MoveHistory from '../../../components/chessboard/MoveHistory';
-import PromotionDialog from '../../../components/chessboard/PromotionDialog';
+import Chessboard from '@/app/games/chess/Board';
+import MoveHistory from '@/app/games/chess/MoveHistory';
+import PromotionDialog from '@/app/games/chess/PromotionDialog';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { Piece } from '../../models/Piece';
-import { Position } from '../../models/Position';
-import { Board } from '../../models/Board';
-import { TeamType, PieceType } from '../../Types';
-import CapturedPiecesPanel from '@/components/chessboard/CapturedPiecesPanel';
+import { Piece } from '@/app/games/chess/models/Piece';
+import { Position } from '@/app/games/chess/models/Position';
+import { Board } from '@/app/games/chess/models/Board';
+import { TeamType, PieceType } from '@/app/games/chess/types';
+import CapturedPiecesPanel from '@/app/games/chess/CapturedPiecesPanel';
 import { getGame, updateGame, endGame } from './actions';
-import { Pawn } from '../../models/Pawn';
+import { Pawn } from '@/app/games/chess/models/Pawn';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import GameOver from '@/components/chessboard/GameOver';

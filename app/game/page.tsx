@@ -1,14 +1,14 @@
 'use client';
 
 import { Card, CardContent } from '@/components/ui/card';
-import Chessboard from '../../components/chessboard/Chessboard';
-import MoveHistory from '../../components/chessboard/MoveHistory';
-import PromotionDialog from '../../components/chessboard/PromotionDialog';
-import { initialBoard } from '../Constants';
+import Chessboard from '@/app/games/chess/Board';
+import MoveHistory from '@/app/games/chess/MoveHistory';
+import PromotionDialog from '@/app/games/chess/PromotionDialog';
+import { initialBoard } from '@/app/games/chess/constants';
 import { useState, useEffect } from 'react';
-import { Piece, Position } from '../models';
-import { TeamType, PieceType } from '../Types';
-import CapturedPiecesPanel from '@/components/chessboard/CapturedPiecesPanel';
+import { Piece, Position } from '@/app/games/chess/models';
+import { TeamType, PieceType } from '@/app/games/chess/types';
+import CapturedPiecesPanel from '@/app/games/chess/CapturedPiecesPanel';
 
 interface Move {
     piece: string;

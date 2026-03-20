@@ -1,8 +1,8 @@
 'use client';
 
-import { PieceType, TeamType } from '@/app/Types';
-import { Piece } from '@/app/models/Piece';
-import { Position } from '@/app/models/Position';
+import { PieceType, TeamType } from './types';
+import { Piece } from './models/Piece';
+import { Position } from './models/Position';
 
 interface Props {
     isVisible: boolean;

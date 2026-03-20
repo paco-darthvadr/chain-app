@@ -1,7 +1,7 @@
 'use client';
 
-import { Piece } from "@/app/models/Piece";
-import { TeamType } from "@/app/Types";
+import { Piece } from "./models/Piece";
+import { TeamType } from "./types";
 
 interface Props {
     capturedPieces: Piece[];

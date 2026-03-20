@@ -1,6 +1,6 @@
-import { Piece } from "../models/Piece";
-import { Position } from "../models/Position";
-import { PieceType, TeamType } from "../Types";
+import { Piece } from "./models/Piece";
+import { Position } from "./models/Position";
+import { PieceType, TeamType } from "./types";
 
 export const getPossiblePawnMoves = (pawn: Piece, boardState: Piece[]): Position[] => {
     const possibleMoves: Position[] = [];

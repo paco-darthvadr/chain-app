@@ -1,4 +1,5 @@
-import { CHESS_VDXF_KEYS, DD_KEY } from './modes/normal/vdxf-keys';
+import { CHESS_VDXF_KEYS } from './modes/normal/vdxf-keys';
+import { DD_KEY } from '@/app/utils/data-descriptor';
 import { rpcCall, buildSubIdFullName } from './verus-rpc';
 
 /**

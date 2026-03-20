@@ -1,10 +1,10 @@
 'use client';
 
-import './Chessboard.css'
-import { Button } from '../ui/button';
-import { Card, CardContent } from '../ui/card';
-import { Piece, Position } from '@/app/models';
-import { GRID_SIZE } from '@/app/Constants';
+import './Board.css'
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Piece, Position } from './models';
+import { GRID_SIZE } from './constants';
 import { useState, useEffect } from 'react';
 import { getTheme, LogoMode } from '@/app/utils/board-themes';
 

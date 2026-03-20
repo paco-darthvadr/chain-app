@@ -104,7 +104,8 @@ export interface GameData {
  * Update a game SubID's contentmultimap with final game data.
  */
 export async function storeGameData(subIdName: string, data: GameData): Promise<{ txid: string }> {
-  const { CHESS_VDXF_KEYS, dd } = await import('./vdxf-keys');
+  const { CHESS_VDXF_KEYS } = await import('./vdxf-keys');
+  const { dd } = await import('@/app/utils/data-descriptor');
 
   const fullName = buildSubIdFullName(subIdName);
 

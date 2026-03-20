@@ -1,4 +1,5 @@
-import { CHESS_VDXF_KEYS, dd } from '../normal/vdxf-keys';
+import { CHESS_VDXF_KEYS } from '../normal/vdxf-keys';
+import { dd } from '@/app/utils/data-descriptor';
 import { rpcCall, buildSubIdFullName } from '@/app/utils/verus-rpc';
 
 export interface LiveGameState {
