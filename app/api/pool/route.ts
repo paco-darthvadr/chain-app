@@ -6,7 +6,7 @@ export async function GET() {
   try {
     const enabled = isPoolEnabled();
     const status = await getPoolStatus();
-    return NextResponse.json({ enabled, ...status, total: status.ready + status.registering + status.used });
+    return NextResponse.json({ enabled, ...status, total: status.ready + status.registering + status.failed + status.used });
   } catch (error: any) {
     console.error('[Pool API] Status error:', error.message);
     return new NextResponse('Internal Error', { status: 500 });
