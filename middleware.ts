@@ -10,6 +10,7 @@ const PUBLIC_PATHS = [
   '/api/login/cli',
   '/api/login-qr',
   '/api/login/logout',
+  '/api/pool',
   '/login',
   '/login/complete',
   '/favicon.ico',
