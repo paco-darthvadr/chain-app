@@ -1,0 +1,179 @@
+# Chess Arena — Developer Guide
+
+## What This Is
+
+A Next.js 14 chess app with real-time multiplayer, VerusID authentication, and Verus blockchain game storage. Games are played in the browser, moves are hash-chained for integrity, and completed games are stored on-chain as SubIDs under `ChessGame@`.
+
+## Quick Start
+
+```bash
+yarn install
+npx prisma db push          # Create/sync SQLite DB
+npx prisma generate         # Generate Prisma client
+cp .env.example .env        # Fill in your Verus RPC credentials
+node server.js &            # Socket.IO on :3002
+npx next dev                # Next.js on :3000
+```
+
+Requires a running Verus testnet daemon (`verusd -chain=VRSCTEST`) with RPC enabled.
+
+## Architecture
+
+```
+Browser ──→ Next.js API Routes ──→ Mode Handlers ──→ Verus RPC (blockchain)
+   ↕              ↕                      ↕
+Socket.IO      Prisma/SQLite        Shared Utilities
+(:3002)          (dev.db)          (verus-rpc.ts, etc.)
+```
+
+### Key directories
+
+```
+app/utils/
+├── verus-rpc.ts          # rpcCall, waitForConfirmation, buildSubIdFullName, getPlayerName
+├── game-counter.ts       # nextGameNumber() — atomic SQLite counter
+├── subid-pool.ts         # Pre-registered SubID pool for showcase mode
+├── chain-reader.ts       # Read game data from on-chain SubIDs
+└── modes/
+    ├── types.ts           # ModeHandler interface
+    ├── mode-resolver.ts   # getModeHandler(mode) dispatch
+    ├── normal/            # Normal mode (hash chain + end-of-game storage)
+    ├── showcase/          # Showcase mode (per-move on-chain + player signatures)
+    └── original/          # Legacy mode (passthrough to BlockchainStorage.js)
+```
+
+## Game Modes
+
+The app supports pluggable game modes via the `ModeHandler` interface:
+
+```typescript
+interface ModeHandler {
+  onMove(game, moveData): Promise<SignedMovePackage | null>;
+  onGameEnd(game): Promise<GameEndResult | null>;
+  storeOnChain(game): Promise<StorageResult>;
+}
+```
+
+| Mode | When data goes on-chain | Player signatures | SubID pool |
+|------|------------------------|-------------------|------------|
+| **normal** | At game end | Closing sigs on gameHash | No (fire-and-forget commitment) |
+| **showcase** | Every move + game end | Opening + closing sigs | Yes (pre-registered) |
+| **original** | At game end (legacy) | None | No |
+
+### Adding a New Mode
+
+1. Create `app/utils/modes/<yourmode>/handler.ts` implementing `ModeHandler`
+2. Add a case to `mode-resolver.ts`:
+   ```typescript
+   case 'yourmode':
+     return yourModeHandler;
+   ```
+3. Update `prisma/schema.prisma` Game.mode comment
+4. Add mode to the challenge UI dropdown in `app/users/page.tsx`
+
+Use shared utilities — don't duplicate:
+- `rpcCall()`, `buildSubIdFullName()`, `getPlayerName()` from `app/utils/verus-rpc.ts`
+- `nextGameNumber()` from `app/utils/game-counter.ts`
+- `CHESS_VDXF_KEYS`, `DD_KEY`, `dd()` from `app/utils/modes/normal/vdxf-keys.ts`
+- `hashMovePackage()`, `verifyChain()`, `computeGameHash()` from `app/utils/modes/normal/hash-chain.ts`
+
+### Routes That Must Be Mode-Aware
+
+When adding a new mode, check these routes for mode gating:
+
+| Route | What it does | Mode check location |
+|-------|-------------|-------------------|
+| `app/api/game/route.ts` | Game creation + SubID assignment | `if (gameMode === 'normal')` / `else if (gameMode === 'showcase')` |
+| `app/api/game/[gameId]/store-blockchain/route.ts` | End-of-game storage | `if (mode === 'normal' \|\| mode === 'showcase')` |
+| `app/api/game/[gameId]/store-move-blockchain/route.ts` | Per-move storage (legacy) | Early return for non-original modes |
+| `app/api/game/[gameId]/verify/route.ts` | Hash chain verification | `if (mode !== 'normal' && mode !== 'showcase')` |
+| `app/api/game/[gameId]/showcase-sign/route.ts` | Player signatures | Accepts `normal` and `showcase` |
+| `components/chessboard/SubIdStatus.tsx` | SubID indicator | `mode !== 'normal' && mode !== 'showcase'` |
+| `components/chessboard/GameOver.tsx` | End-of-game UI | `hasChainSupport = isShowcase \|\| isNormal` |
+
+## On-Chain Data Format
+
+Each game is a SubID under `ChessGame@` (e.g., `game0017.ChessGame@`).
+
+Data is stored in `contentmultimap` using VDXF keys wrapped in DataDescriptors:
+
+```
+chessgame::game.v1.white     → "zenny@"
+chessgame::game.v1.black     → "lenny@"
+chessgame::game.v1.moves     → ["e2e4","e7e5","d1h5","a7a6","h5f7"]
+chessgame::game.v1.winner    → "zenny@"
+chessgame::game.v1.gamehash  → "217b6796c7202d3f..."
+chessgame::game.v1.whitesig  → <player signature on gameHash>
+chessgame::game.v1.blacksig  → <player signature on gameHash>
+chessgame::game.v1.mode      → "showcase"
+... (17 keys total, see vdxf-keys.ts)
+```
+
+DataDescriptor format: `{ [DD_KEY]: { version: 1, mimetype, objectdata: { message: value }, label } }`
+
+## Hash Chain
+
+Ensures move integrity without trusting the server:
+
+1. **Anchor hash**: `SHA256(subIdName + white + black + "standard")` — binds chain to game identity
+2. **Each move**: `SHA256(JSON.stringify(movePackage))` where movePackage includes prevHash
+3. **Game hash**: SHA256 of the final move package — both players sign this
+
+Verification: `verifyChain(subIdName, white, black, movePackages)` returns `{ valid, error? }`.
+
+## SubID Pool (Showcase Mode)
+
+Showcase mode needs SubIDs confirmed on-chain before the first move. The pool pre-registers them:
+
+```
+Pool lifecycle: registering → ready → used
+                     ↓ (on failure)
+                   failed → (retry on next ensurePoolSize)
+```
+
+- `GET /api/pool` — pool status (public)
+- `POST /api/pool` — trigger replenishment (requires `x-api-secret` header in production)
+- `SUBID_POOL_ENABLED=false` disables the pool entirely
+- Pool only used for showcase mode; normal mode uses fire-and-forget commitment
+
+## Environment Variables
+
+See `.env.example` for all variables. Critical ones:
+
+| Variable | Purpose |
+|----------|---------|
+| `VERUS_RPC_*` | Daemon connection (user, password, host, port) |
+| `CHESSGAME_IDENTITY_NAME` | Parent identity (default: `ChessGame@`) |
+| `CHESSGAME_IDENTITY_ADDRESS` | Parent i-address |
+| `CHESSGAME_SIGNING_WIF` | Private key for SubID operations |
+| `SUBID_POOL_ENABLED` | Pool toggle (default: true) |
+| `INTERNAL_API_SECRET` | Shared secret for server.js → Next.js internal calls |
+
+## Database
+
+SQLite via Prisma. Key models:
+
+- **Game** — players, board state, status, mode, blockchain tx tracking
+- **GameSession** — SubID assignment, hash chain results, player signatures (opening + closing)
+- **Move** — individual moves with signed packages
+- **SubIdPool** — pre-registered SubIDs for showcase mode
+- **GameCounter** — singleton auto-incrementing game number
+
+## Socket.IO Events
+
+`server.js` runs independently on port 3002. Key events:
+
+| Event | Direction | Purpose |
+|-------|-----------|---------|
+| `register-user` | Client → Server | Associate userId with socket |
+| `challenge-user` | Client → Server | Send game challenge (includes mode) |
+| `move-made` | Client → Server | Relay board state + signed package |
+| `leave-game` | Client → Server | Notify opponent of departure |
+| `rematch-offer/accept` | Bidirectional | Rematch flow (carries over mode, randomizes colors) |
+
+## Known Limitations
+
+1. `blockchain-move-storage-basic.js` has a broken import — original mode per-move storage will crash
+2. Player signing is via CLI `verus signmessage` — no browser wallet integration yet
+3. SQLite-specific `INSERT OR IGNORE` in game-counter.ts — needs change for PostgreSQL
+4. Auto-store unsigned games not yet implemented (if neither player signs, game stays local only)
