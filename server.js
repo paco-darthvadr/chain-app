@@ -11,7 +11,9 @@ const allowedOrigins = [
   'http://127.0.0.1:3000', // for localhost alternative
   'http://127.0.0.1:3001', // for localhost alternative on port 3001
   'https://dev.verus-timelock.xyz', // production frontend
-  'https://socket.verus-timelock.xyz' // production socket
+  'https://socket.verus-timelock.xyz', // production socket
+  'https://chess.autobb.app', // cloudflare tunnel
+  'https://socket.autobb.app' // cloudflare tunnel socket
 ];
 if (process.env.CLIENT_URL) {
   allowedOrigins.push(process.env.CLIENT_URL);
@@ -190,10 +192,14 @@ io.on('connection', (socket) => {
 
       const originalGame = await response.json();
 
-      // Swap the players for the new game
+      // Randomize colors for the rematch, carry over mode
+      const [white, black] = Math.random() < 0.5
+        ? [originalGame.whitePlayerId, originalGame.blackPlayerId]
+        : [originalGame.blackPlayerId, originalGame.whitePlayerId];
       const newGameData = {
-        whitePlayerId: originalGame.blackPlayerId,
-        blackPlayerId: originalGame.whitePlayerId,
+        whitePlayerId: white,
+        blackPlayerId: black,
+        mode: originalGame.mode || 'normal',
       };
       const bodyString = JSON.stringify(newGameData);
       console.log('Rematch newGameData:', newGameData, bodyString);
