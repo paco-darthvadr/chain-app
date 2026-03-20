@@ -7,7 +7,6 @@ import { useRouter } from 'next/navigation';
 import { io, Socket } from 'socket.io-client';
 import { getUsers, getGamesForUser, deleteUser } from './actions';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
-import { useChallenges } from '@/components/dashboard/ChallengeContext';
 
 let socket: Socket | null = null;
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -33,8 +32,6 @@ function UsersPage() {
     const [challengeTarget, setChallengeTarget] = useState<User | null>(null);
     const [challengeSent, setChallengeSent] = useState<string | null>(null); // Store opponentId
     const router = useRouter();
-    const { addChallenge } = useChallenges();
-    
     const isFetchingRef = useRef(false);
 
     const fetchUsersAndGames = useCallback(async (userId: string | null) => {
@@ -145,17 +142,19 @@ function UsersPage() {
             logoMode,
         });
         setChallengeSent(challengeTarget.id);
-        addChallenge({
-            challengerId: currentUserId,
-            challengerName: currentUser.displayName || currentUser.verusId,
-            challengeeId: challengeTarget.id,
-            mode,
-            boardTheme,
-            logoMode,
-            challengerStatus: 'available',
-            timestamp: Date.now(),
-            state: 'sent',
-        });
+        window.dispatchEvent(new CustomEvent('challenge-sent', {
+            detail: {
+                challengerId: currentUserId,
+                challengerName: challengeTarget.displayName || challengeTarget.verusId,
+                challengeeId: challengeTarget.id,
+                mode,
+                boardTheme,
+                logoMode,
+                challengerStatus: 'available',
+                timestamp: Date.now(),
+                state: 'sent',
+            }
+        }));
         setChallengeTarget(null);
     };
 

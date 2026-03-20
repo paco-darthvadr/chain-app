@@ -93,9 +93,17 @@ export default function SocketRegistration() {
             window.dispatchEvent(new CustomEvent('socket:refresh-user-list'));
         });
 
+        // Listen for sent challenges from the users page
+        const handleChallengeSent = (e: Event) => {
+            const detail = (e as CustomEvent).detail;
+            if (detail) addChallenge(detail);
+        };
+        window.addEventListener('challenge-sent', handleChallengeSent);
+
         return () => {
             socket.disconnect();
             setGlobalSocket(null);
+            window.removeEventListener('challenge-sent', handleChallengeSent);
         };
     }, [addChallenge, removeChallenge, updateChallengerStatus, markOpponentReady]);
 
