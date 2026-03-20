@@ -22,11 +22,11 @@ export default function SocketRegistration() {
     const { addChallenge, removeChallenge, updateChallengerStatus, markOpponentReady } = useChallenges();
 
     useEffect(() => {
-        if (initialized.current) return;
-        initialized.current = true;
-
         const userId = localStorage.getItem('currentUser');
         if (!userId) return;
+
+        if (initialized.current) return;
+        initialized.current = true;
 
         const socketURL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3002';
         const socket = io(socketURL);

@@ -111,13 +111,13 @@ function UsersPage() {
 
     const handleOpenChallenge = (user: User) => {
         if (!currentUserId) return alert("Please select your user identity first.");
-        if (!getGlobalSocket()) return alert("Not connected to server. Please wait.");
         setChallengeTarget(user);
     };
 
     const handleConfirmChallenge = ({ mode, boardTheme, logoMode }: { mode: string; boardTheme: string; logoMode: string }) => {
         const socket = getGlobalSocket();
-        if (!currentUserId || !socket || !challengeTarget) return;
+        if (!currentUserId || !challengeTarget) return;
+        if (!socket) return alert("Not connected to server. Please wait and try again.");
 
         const currentUser = users.find(u => u.id === currentUserId);
         if (!currentUser) return alert("Could not find your user data.");
