@@ -7,13 +7,12 @@ import { useRouter } from 'next/navigation';
 import { io, Socket } from 'socket.io-client';
 import { getUsers, getGamesForUser, deleteUser } from './actions';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
+import { useChallenges } from '@/components/dashboard/ChallengeContext';
 
 let socket: Socket | null = null;
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import BlockchainInfoDialog from '@/components/chessboard/BlockchainInfoDialog';
 import ChallengeModal from '@/components/chessboard/ChallengeModal';
-import { getTheme } from '@/app/utils/board-themes';
-
 interface User {
     id: string;
     verusId: string;
@@ -23,10 +22,6 @@ interface User {
 
 // Uses global socket from SocketRegistration — no local socket creation
 
-const getBaseUrl = () => {
-    return process.env.NEXT_PUBLIC_APP_URL;
-};
-
 function UsersPage() {
     const [users, setUsers] = useState<User[]>([]);
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -35,10 +30,10 @@ function UsersPage() {
     const [isDeleting, setIsDeleting] = useState(false);
     const [showBlockchainInfo, setShowBlockchainInfo] = useState(false);
     const [hasShownBlockchainInfo, setHasShownBlockchainInfo] = useState(false);
-    const [incomingChallenge, setIncomingChallenge] = useState<{ challengerId: string, challengerName: string, mode?: string, boardTheme?: string, logoMode?: string } | null>(null);
     const [challengeTarget, setChallengeTarget] = useState<User | null>(null);
     const [challengeSent, setChallengeSent] = useState<string | null>(null); // Store opponentId
     const router = useRouter();
+    const { addChallenge } = useChallenges();
     
     const isFetchingRef = useRef(false);
 
@@ -60,6 +55,10 @@ function UsersPage() {
             if (newCurrentId && fetchedUsers.find((u: User) => u.id === newCurrentId)) {
                 setCurrentUserId(newCurrentId);
                 localStorage.setItem('currentUser', newCurrentId);
+                const currentUserObj = fetchedUsers.find((u: User) => u.id === newCurrentId);
+                if (currentUserObj) {
+                    localStorage.setItem('currentUserName', currentUserObj.displayName || currentUserObj.verusId);
+                }
                 if (socket) socket.emit('register-user', newCurrentId);
                 const games = await getGamesForUser(newCurrentId);
                 setUserGames(games);
@@ -91,13 +90,6 @@ function UsersPage() {
             fetchUsersAndGames(localStorage.getItem('currentUser'));
         });
 
-        socket.on('new-challenge', ({ challengerId, challengerName, mode, boardTheme, logoMode }) => {
-            const currentUser = localStorage.getItem('currentUser');
-            if (challengerId !== currentUser) {
-                setIncomingChallenge({ challengerId, challengerName, mode, boardTheme, logoMode });
-            }
-        });
-
         socket.on('challenge-failed', ({ message }) => {
             alert(message);
             setChallengeSent(null);
@@ -105,11 +97,6 @@ function UsersPage() {
 
         socket.on('game-started', ({ gameId }) => {
             router.push(`/game/${gameId}`);
-        });
-
-        socket.on('challenge-denied', ({ declinerName }) => {
-            alert(`${declinerName} declined your challenge.`);
-            setChallengeSent(null);
         });
 
         socket.on('refresh-game-list', () => {
@@ -158,57 +145,18 @@ function UsersPage() {
             logoMode,
         });
         setChallengeSent(challengeTarget.id);
-        setChallengeTarget(null);
-    };
-
-    const handleAcceptChallenge = async () => {
-        if (!incomingChallenge || !currentUserId) return;
-        setIsLoading(true);
-
-        try {
-            const res = await fetch(`${getBaseUrl()}/api/game`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    ...(Math.random() < 0.5
-                        ? { whitePlayerId: incomingChallenge.challengerId, blackPlayerId: currentUserId }
-                        : { whitePlayerId: currentUserId, blackPlayerId: incomingChallenge.challengerId }),
-                    mode: incomingChallenge.mode || 'normal',
-                    boardTheme: incomingChallenge.boardTheme || 'classic',
-                    logoMode: incomingChallenge.logoMode || 'off',
-                }),
-            });
-
-            if (res.ok) {
-                const newGame = await res.json();
-                if (socket) {
-                    socket.emit('challenge-accepted', {
-                        challengerId: incomingChallenge.challengerId,
-                        gameId: newGame.id
-                    });
-                }
-                router.push(`/game/${newGame.id}`);
-            } else {
-                alert('Failed to create game.');
-            }
-        } catch (error) {
-            console.error("Error creating game:", error);
-            alert("An error occurred while creating the game.");
-        } finally {
-            setIncomingChallenge(null);
-            setIsLoading(false);
-        }
-    };
-
-    const handleDeclineChallenge = () => {
-        if (!incomingChallenge || !currentUserId) return;
-        const currentUser = users.find(u => u.id === currentUserId);
-
-        socket?.emit('challenge-declined', {
-            challengerId: incomingChallenge.challengerId,
-            declinerName: currentUser?.displayName || currentUser?.verusId || 'Someone'
+        addChallenge({
+            challengerId: currentUserId,
+            challengerName: currentUser.displayName || currentUser.verusId,
+            challengeeId: challengeTarget.id,
+            mode,
+            boardTheme,
+            logoMode,
+            challengerStatus: 'available',
+            timestamp: Date.now(),
+            state: 'sent',
         });
-        setIncomingChallenge(null);
+        setChallengeTarget(null);
     };
 
     const handleDelete = async (userId: string) => {
@@ -231,29 +179,6 @@ function UsersPage() {
 
     return (
         <DashboardLayout>
-            {incomingChallenge && (
-                <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-                    <div className="bg-card p-8 rounded-lg shadow-xl text-center border">
-                        <h2 className="text-2xl font-bold mb-2">{incomingChallenge.challengerName} has challenged you!</h2>
-                        <div className="text-sm text-muted-foreground mb-4 space-y-1">
-                            {incomingChallenge.mode === 'showcase' && (
-                                <p className="text-amber-400">Mode: Showcase (every move stored on-chain live)</p>
-                            )}
-                            {incomingChallenge.boardTheme && incomingChallenge.boardTheme !== 'classic' && (
-                                <p>Board: {getTheme(incomingChallenge.boardTheme).name}</p>
-                            )}
-                        </div>
-                        <div className="flex justify-center gap-4 mt-6">
-                            <Button onClick={handleAcceptChallenge} disabled={isLoading}>
-                                {isLoading ? "Accepting..." : "Accept"}
-                            </Button>
-                            <Button variant="destructive" onClick={handleDeclineChallenge} disabled={isLoading}>
-                                Decline
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            )}
             {showBlockchainInfo && (
                 <div
                     className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm"
@@ -354,7 +279,7 @@ function UsersPage() {
                                         </div>
                                         <Button
                                             onClick={() => handleOpenChallenge(user)}
-                                            disabled={isLoading || isDeleting || challengeSent === user.id || !!incomingChallenge}
+                                            disabled={isLoading || isDeleting || challengeSent === user.id}
                                         >
                                             {challengeSent === user.id ? 'Sent' : 'Challenge'}
                                         </Button>
