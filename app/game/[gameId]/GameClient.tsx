@@ -554,7 +554,20 @@ const GameClient = ({ game }: GameClientProps) => {
         }
     };
     
-    // Render player selection screen if a player hasn't been identified
+    // Auto-detect player from stored user ID
+    useEffect(() => {
+        if (currentPlayer) return;
+        const storedUser = localStorage.getItem('currentUser');
+        if (storedUser) {
+            if (storedUser === gameState.whitePlayer.id) {
+                handlePlayerSelect(gameState.whitePlayer.id);
+            } else if (storedUser === gameState.blackPlayer.id) {
+                handlePlayerSelect(gameState.blackPlayer.id);
+            }
+        }
+    }, [gameState.whitePlayer.id, gameState.blackPlayer.id, currentPlayer]);
+
+    // Fallback: show player selection if auto-detect didn't match
     if (!currentPlayer) {
         return (
             <div className="flex justify-center items-center h-screen bg-background text-foreground">
@@ -565,7 +578,7 @@ const GameClient = ({ game }: GameClientProps) => {
                     </p>
                     <div className="flex justify-around gap-4">
                         {[gameState.whitePlayer, gameState.blackPlayer].map((player, index) => (
-                            <button 
+                            <button
                                 key={player.id}
                                 onClick={() => handlePlayerSelect(player.id)}
                                 className="flex flex-col items-center gap-3 p-6 rounded-lg border hover:bg-muted w-1/2"
