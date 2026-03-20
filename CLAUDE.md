@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A Next.js 14 chess app with real-time multiplayer, VerusID authentication, and Verus blockchain game storage. Games are played in the browser, moves are hash-chained for integrity, and completed games are stored on-chain as SubIDs under `ChessGame@`.
+A Next.js 14 multi-game platform with real-time multiplayer, VerusID authentication, and Verus blockchain game storage. Initially chess-only, it now supports multiple game types (chess, checkers) via a pluggable game registry. Games are played in the browser, moves are hash-chained for integrity, and completed games are stored on-chain as SubIDs under a per-game-type parent identity (e.g., `ChessGame@`, `CheckersGame@`).
 
 ## Quick Start
 
@@ -29,9 +29,25 @@ Socket.IO      Prisma/SQLite        Shared Utilities
 ### Key directories
 
 ```
+app/games/
+├── types.ts               # GameConfig interface + GameType union
+├── registry.ts            # GAME_REGISTRY map — all registered game types
+├── chess/                 # Chess implementation
+│   ├── config.ts          # GameConfig for chess (identity, VDXF keys, labels)
+│   ├── Board.tsx          # Chess board renderer
+│   ├── rules.ts           # Move validation, legal moves, game-over detection
+│   ├── vdxf-keys.ts       # Chess-specific VDXF key constants
+│   └── models/            # Chess piece/state models
+└── checkers/              # Checkers implementation
+    ├── config.ts          # GameConfig for checkers
+    ├── Board.tsx          # Checkers board renderer
+    ├── rules.ts           # Checkers move validation
+    └── models/            # Checkers state models
+
 app/utils/
 ├── verus-rpc.ts          # rpcCall, waitForConfirmation, buildSubIdFullName, getPlayerName
-├── game-counter.ts       # nextGameNumber() — atomic SQLite counter
+├── data-descriptor.ts    # dd() helper — wraps values in VDXF DataDescriptor format
+├── game-counter.ts       # nextGameNumber(gameType) — atomic per-game-type counter
 ├── subid-pool.ts         # Pre-registered SubID pool for showcase mode
 ├── board-themes.ts       # 10 board color themes, LogoMode type, validators
 ├── chain-reader.ts       # Read game data from on-chain SubIDs
@@ -42,17 +58,19 @@ app/utils/
     ├── showcase/          # Showcase mode (per-move on-chain + player signatures)
     └── original/          # Legacy mode (passthrough to BlockchainStorage.js)
 
+components/game/
+├── ChallengeModal.tsx     # Challenge config popup (mode + theme + logo picker, game type)
+├── GameOver.tsx           # End-of-game UI with signing flow
+├── GameMoves.tsx          # Move history panel
+├── SubIdStatus.tsx        # SubID assignment indicator
+├── ShowcaseSigningPrompt.tsx # Player signing prompt for showcase mode
+└── BlockchainInfoDialog.tsx  # On-chain storage info dialog
+
 components/dashboard/
 ├── ChallengeContext.tsx   # React Context for challenge state (persists across pages)
 ├── ChallengeInbox.tsx     # Navbar dropdown: incoming/sent challenges, status dots
 ├── DashboardLayout.tsx    # SideNav + Navbar wrapper
 └── SocketRegistration.tsx # Global Socket.IO connection, feeds ChallengeContext
-
-components/chessboard/
-├── Chessboard.tsx         # Board renderer (accepts boardTheme + logoMode props)
-├── ChallengeModal.tsx     # Challenge config popup (mode + theme + logo picker)
-├── GameOver.tsx           # End-of-game UI with signing flow
-└── ...
 ```
 
 ## Game Modes
@@ -89,6 +107,27 @@ Use shared utilities — don't duplicate:
 - `nextGameNumber()` from `app/utils/game-counter.ts`
 - `CHESS_VDXF_KEYS`, `DD_KEY`, `dd()` from `app/utils/modes/normal/vdxf-keys.ts`
 - `hashMovePackage()`, `verifyChain()`, `computeGameHash()` from `app/utils/modes/normal/hash-chain.ts`
+
+### Adding a New Game
+
+1. Create `app/games/<yourtype>/` with at minimum:
+   - `config.ts` — implements the `GameConfig` interface (identity name, VDXF keys, display name, etc.)
+   - `Board.tsx` — React board component (receives `gameState`, `onMove`, `boardTheme`, `logoMode`)
+   - `rules.ts` — move validation, legal move generation, game-over detection
+   - `types.ts` — game-specific state types
+   - `vdxf-keys.ts` — VDXF key constants for on-chain storage
+2. Implement the `GameConfig` interface from `app/games/types.ts`
+3. Register in `app/games/registry.ts`:
+   ```typescript
+   import { yourConfig } from './yourtype/config';
+   export const GAME_REGISTRY = { chess: chessConfig, yourtype: yourConfig };
+   ```
+4. Add parent identity env vars (see Environment Variables section)
+5. Register VDXF keys on the daemon:
+   ```bash
+   verus -chain=VRSCTEST definedatastream '{"name":"yourtype::game.v1.player1","systemid":"..."}'
+   ```
+6. Add `<yourtype>GameCounter` seed in `prisma/schema.prisma` GameCounter model comment
 
 ### Routes That Must Be Mode-Aware
 
@@ -156,9 +195,12 @@ See `.env.example` for all variables. Critical ones:
 | Variable | Purpose |
 |----------|---------|
 | `VERUS_RPC_*` | Daemon connection (user, password, host, port) |
-| `CHESSGAME_IDENTITY_NAME` | Parent identity (default: `ChessGame@`) |
-| `CHESSGAME_IDENTITY_ADDRESS` | Parent i-address |
-| `CHESSGAME_SIGNING_WIF` | Private key for SubID operations |
+| `CHESSGAME_IDENTITY_NAME` | Chess parent identity (default: `ChessGame@`) |
+| `CHESSGAME_IDENTITY_ADDRESS` | Chess parent i-address |
+| `CHESSGAME_SIGNING_WIF` | Private key for chess SubID operations |
+| `CHECKERSGAME_IDENTITY_NAME` | Checkers parent identity (default: `CheckersGame@`) |
+| `CHECKERSGAME_IDENTITY_ADDRESS` | Checkers parent i-address |
+| `CHECKERSGAME_SIGNING_WIF` | Private key for checkers SubID operations |
 | `SUBID_POOL_ENABLED` | Pool toggle (default: true) |
 | `INTERNAL_API_SECRET` | Shared secret for server.js → Next.js internal calls |
 
@@ -166,11 +208,11 @@ See `.env.example` for all variables. Critical ones:
 
 SQLite via Prisma. Key models:
 
-- **Game** — players, board state, status, mode, boardTheme, logoMode, blockchain tx tracking
+- **Game** — `gameType` (e.g., `"chess"`, `"checkers"`), `player1Id`/`player2Id` (VerusID strings, not color-specific), board state, status, mode, boardTheme, logoMode, blockchain tx tracking
 - **GameSession** — SubID assignment, hash chain results, player signatures (opening + closing)
 - **Move** — individual moves with signed packages
-- **SubIdPool** — pre-registered SubIDs for showcase mode
-- **GameCounter** — singleton auto-incrementing game number
+- **SubIdPool** — pre-registered SubIDs per `gameType`; `subIdName` is namespaced (e.g., `"chess-game0017"`)
+- **GameCounter** — per-game-type counter; `id` is the game type string (e.g., `"chess"`, `"checkers"`)
 
 ## Board Themes
 
@@ -196,18 +238,18 @@ Accept-while-busy flow: if challenger is in-game, acceptor sends `challenge-acce
 | Event | Direction | Purpose |
 |-------|-----------|---------|
 | `register-user` | Client → Server | Associate userId with socket |
-| `challenge-user` | Client → Server | Send game challenge (includes mode, boardTheme, logoMode) |
+| `challenge-user` | Client → Server | Send game challenge (includes `gameType`, mode, boardTheme, logoMode) |
 | `challenge-cancel` | Client → Server | Cancel a sent challenge |
-| `challenge-accepted-busy` | Client → Server | Accept while challenger is in-game |
-| `start-game` | Client → Server | Both ready — server creates game |
-| `new-challenge` | Server → Client | Relay challenge with challengerStatus |
+| `challenge-accepted-busy` | Client → Server | Accept while challenger is in-game (includes `gameType`) |
+| `start-game` | Client → Server | Both ready — server creates game (includes `gameType`) |
+| `new-challenge` | Server → Client | Relay challenge with challengerStatus and `gameType` |
 | `challenge-cancelled` | Server → Client | Challenge was cancelled |
 | `ready-to-play` | Server → Client | Opponent accepted your challenge |
 | `user-status-changed` | Server → Client | User's game status changed |
-| `game-started` | Server → Client | Game created, redirect both players |
+| `game-started` | Server → Client | Game created, redirect both players (includes `gameType`) |
 | `move-made` | Client → Server | Relay board state + signed package |
 | `leave-game` | Client → Server | Notify opponent of departure |
-| `rematch-offer/accept` | Bidirectional | Rematch flow (carries over mode + theme, randomizes colors) |
+| `rematch-offer/accept` | Bidirectional | Rematch flow (carries over `gameType`, mode + theme, randomizes colors) |
 
 ## Known Limitations
 
