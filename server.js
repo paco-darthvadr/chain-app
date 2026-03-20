@@ -74,7 +74,7 @@ io.on('connection', (socket) => {
     io.to(roomId).emit('updateUserList', { users: rooms[roomId] });
   });
 
-  socket.on('challenge-user', ({ challengerId, challengerName, challengeeId, mode }) => {
+  socket.on('challenge-user', ({ challengerId, challengerName, challengeeId, mode, boardTheme, logoMode }) => {
     console.log(`Challenge attempt: ${challengerName} (${challengerId}) challenging ${challengeeId}`);
     console.log('Available users:', Object.keys(userSockets));
 
@@ -85,7 +85,9 @@ io.on('connection', (socket) => {
             io.to(sid).emit('new-challenge', {
                 challengerId: challengerId,
                 challengerName: challengerName,
-                mode: mode
+                mode: mode,
+                boardTheme: boardTheme || 'classic',
+                logoMode: logoMode || 'off'
             });
         }
     } else {
@@ -200,6 +202,8 @@ io.on('connection', (socket) => {
         whitePlayerId: white,
         blackPlayerId: black,
         mode: originalGame.mode || 'normal',
+        boardTheme: originalGame.boardTheme || 'classic',
+        logoMode: originalGame.logoMode || 'off',
       };
       const bodyString = JSON.stringify(newGameData);
       console.log('Rematch newGameData:', newGameData, bodyString);
