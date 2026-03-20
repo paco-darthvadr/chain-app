@@ -11,6 +11,7 @@ export const showcaseHandler: ModeHandler = {
 
   async onMove(game: any, moveData: MoveData): Promise<SignedMovePackage> {
     const signer = getMoveSigner();
+    const config = getGameConfig(game.gameType || 'chess');
 
     let session = await prisma.gameSession.findUnique({ where: { gameId: game.id } });
     if (!session) {
@@ -83,7 +84,7 @@ export const showcaseHandler: ModeHandler = {
         if (!session.subIdAddress) {
           // Fallback: pool was empty, create SubID on-the-fly
           console.log(`[Showcase] No pool SubID for ${subIdName}, creating on-the-fly...`);
-          const subIdResult = await createGameSubId(subIdName);
+          const subIdResult = await createGameSubId(subIdName, config.parentIdentityAddress, config.parentIdentityName);
           await prisma.gameSession.update({
             where: { gameId: game.id },
             data: { subIdAddress: subIdResult.address },
@@ -91,7 +92,7 @@ export const showcaseHandler: ModeHandler = {
         } else {
           console.log(`[Showcase] Using pool SubID ${subIdName} (${session.subIdAddress})`);
         }
-        await updateGameOnChain(subIdName, liveState);
+        await updateGameOnChain(subIdName, liveState, config.vdxfKeys, config.parentIdentityName);
       } catch (error: any) {
         console.error(`[Showcase] Live chain update failed for move ${moveNum}:`, error.message);
       }
@@ -144,6 +145,7 @@ export const showcaseHandler: ModeHandler = {
   },
 
   async storeOnChain(game: any): Promise<StorageResult> {
+    const config = getGameConfig(game.gameType || 'chess');
     const fullGame = await prisma.game.findUnique({
       where: { id: game.id },
       include: { player1: true, player2: true, moves: { orderBy: { createdAt: 'asc' } } },
@@ -192,7 +194,7 @@ export const showcaseHandler: ModeHandler = {
     };
 
     try {
-      const { txid } = await updateGameOnChain(subIdName, finalState);
+      const { txid } = await updateGameOnChain(subIdName, finalState, config.vdxfKeys, config.parentIdentityName);
       await prisma.gameSession.update({
         where: { gameId: game.id },
         data: { storedAt: new Date(), txId: txid },

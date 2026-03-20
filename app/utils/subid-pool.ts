@@ -68,7 +68,8 @@ export async function popReadySubId(gameType: string = 'chess'): Promise<{
 export async function ensurePoolSize(
   minSize: number = 5,
   gameType: string = 'chess',
-  parentIdentityAddress?: string
+  parentIdentityAddress?: string,
+  parentIdentityName?: string
 ): Promise<void> {
   if (!isPoolEnabled()) return;
 
@@ -93,14 +94,14 @@ export async function ensurePoolSize(
   (async () => {
     for (const record of failed) {
       try {
-        await registerSubId(record, gameType, parentIdentityAddress);
+        await registerSubId(record, gameType, parentIdentityAddress, parentIdentityName);
       } catch (err: any) {
         console.error(`[SubID Pool] Retry failed for ${record.subIdName}:`, err.message);
       }
     }
     for (let i = 0; i < newNeeded; i++) {
       try {
-        await registerSubId(undefined, gameType, parentIdentityAddress);
+        await registerSubId(undefined, gameType, parentIdentityAddress, parentIdentityName);
       } catch (err: any) {
         console.error('[SubID Pool] New registration failed:', err.message);
       }
@@ -122,7 +123,8 @@ export async function ensurePoolSize(
 async function registerSubId(
   existingRecord?: any,
   gameType: string = 'chess',
-  parentIdentityAddress?: string
+  parentIdentityAddress?: string,
+  parentIdentityName?: string
 ): Promise<void> {
   let poolRecord: any;
   let subIdName: string;
@@ -144,7 +146,7 @@ async function registerSubId(
   }
 
   const parentAddress = parentIdentityAddress || process.env.CHESSGAME_IDENTITY_ADDRESS;
-  const fullName = buildSubIdFullName(subIdName);
+  const fullName = buildSubIdFullName(subIdName, parentIdentityName);
 
   try {
     if (!parentAddress) {
@@ -243,7 +245,8 @@ async function registerSubId(
 
 export async function registerOneSubId(
   gameType: string = 'chess',
-  parentIdentityAddress?: string
+  parentIdentityAddress?: string,
+  parentIdentityName?: string
 ): Promise<void> {
-  return registerSubId(undefined, gameType, parentIdentityAddress);
+  return registerSubId(undefined, gameType, parentIdentityAddress, parentIdentityName);
 }

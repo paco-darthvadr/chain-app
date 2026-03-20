@@ -53,7 +53,7 @@ const BlockchainInfoDialog: React.FC<BlockchainInfoDialogProps> = ({ isVisible, 
             </div>
             <div className="flex items-start gap-3">
               <span className="bg-blue-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0 mt-0.5">3</span>
-              <p className="text-blue-100 text-sm">The complete game record is stored on the Verus blockchain as a <strong className="text-white">SubID under ChessGame@</strong> — a permanent, publicly verifiable identity with all game data.</p>
+              <p className="text-blue-100 text-sm">The complete game record is stored on the Verus blockchain as a <strong className="text-white">SubID under a parent identity</strong> — a permanent, publicly verifiable identity with all game data.</p>
             </div>
           </div>
         </div>
@@ -93,7 +93,7 @@ const BlockchainInfoDialog: React.FC<BlockchainInfoDialogProps> = ({ isVisible, 
         <div className="bg-blue-700/30 rounded-lg p-4 mb-6">
           <p className="text-blue-100 text-sm leading-relaxed">
             <strong className="text-white">On-chain record:</strong> Each completed game becomes a Verus SubID
-            (e.g. <span className="font-mono text-blue-300">game0008.ChessGame@</span>) containing players, moves,
+            (e.g. <span className="font-mono text-blue-300">chess-game0008.ChessGame@</span>) containing players, moves,
             result, game hash, and signatures — all stored as DataDescriptors with registered VDXF keys.
           </p>
         </div>

@@ -199,11 +199,11 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
         {/* Game Summary */}
         <div className="text-left text-sm space-y-2 bg-muted p-3 rounded-md">
           <div className="flex justify-between">
-            <span className="text-muted-foreground">White:</span>
+            <span className="text-muted-foreground">Player 1:</span>
             <span className="font-medium">{game?.player1?.displayName || game?.player1?.verusId || '?'}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Black:</span>
+            <span className="text-muted-foreground">Player 2:</span>
             <span className="font-medium">{game?.player2?.displayName || game?.player2?.verusId || '?'}</span>
           </div>
           <div className="flex justify-between">
@@ -217,7 +217,7 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
           {gameSession?.subIdName && (
             <div className="flex justify-between">
               <span className="text-muted-foreground">SubID:</span>
-              <span className="font-mono text-xs">{gameSession.subIdName}.chessgame@</span>
+              <span className="font-mono text-xs">{gameSession.subIdName}</span>
             </div>
           )}
         </div>
@@ -247,9 +247,9 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
             {/* Game summary — what you're signing */}
             <div className="text-sm space-y-1 bg-muted p-3 rounded-md">
               <p className="text-muted-foreground font-medium mb-2">You are confirming:</p>
-              <div className="flex justify-between"><span className="text-muted-foreground">White:</span><span className="font-medium">{game?.player1?.displayName || game?.player1?.verusId || '?'}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Black:</span><span className="font-medium">{game?.player2?.displayName || game?.player2?.verusId || '?'}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Winner:</span><span className="font-medium">{game?.winner === game?.player1Id ? (game?.player1?.displayName || 'White') : game?.winner === game?.player2Id ? (game?.player2?.displayName || 'Black') : 'Draw'}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Player 1:</span><span className="font-medium">{game?.player1?.displayName || game?.player1?.verusId || '?'}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Player 2:</span><span className="font-medium">{game?.player2?.displayName || game?.player2?.verusId || '?'}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Winner:</span><span className="font-medium">{game?.winner === game?.player1Id ? (game?.player1?.displayName || 'Player 1') : game?.winner === game?.player2Id ? (game?.player2?.displayName || 'Player 2') : 'Draw'}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">Moves:</span><span className="font-medium">{moveCount}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">Game Hash:</span><span className="font-mono text-xs break-all">{gameSession.gameHash.substring(0, 16)}...</span></div>
             </div>

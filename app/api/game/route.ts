@@ -85,7 +85,7 @@ export async function POST(req: Request) {
                         data: { usedByGameId: newGame.id },
                     });
 
-                    ensurePoolSize(5, validGameType, config.parentIdentityAddress).catch(err => console.error('[SubID Pool] Replenish failed:', err.message));
+                    ensurePoolSize(5, validGameType, config.parentIdentityAddress, config.parentIdentityName).catch(err => console.error('[SubID Pool] Replenish failed:', err.message));
                 } else {
                     console.log('[SubID Pool] No ready SubIDs, falling back to on-the-fly registration');
                     const { subIdName } = await nextGameNumber(validGameType, config.subIdPrefix + '-');

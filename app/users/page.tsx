@@ -233,7 +233,7 @@ function UsersPage() {
                                                 <div>
                                                     <p className="font-semibold">{opponent.displayName || opponent.verusId}</p>
                                                     <p className="text-xs text-muted-foreground">
-                                                        You are {isWhite ? 'White' : 'Black'}
+                                                        You are {isWhite ? 'Player 1' : 'Player 2'}
                                                     </p>
                                                 </div>
                                             </div>

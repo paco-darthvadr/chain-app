@@ -32,7 +32,7 @@ const Navbar = () => {
         </Link>
     </DropdownMenuItem>
     <DropdownMenuItem>
-        <Link href={'/games'}>
+        <Link href={'/dashboard'}>
         Games
         </Link>
     </DropdownMenuItem>

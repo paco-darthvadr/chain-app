@@ -177,7 +177,7 @@ export const normalHandler: ModeHandler = {
       // Step 1: Create SubID (skips if already exists)
       let subIdAddress = session.subIdAddress;
       if (!subIdAddress) {
-        const subIdResult = await createGameSubId(subIdName, config.parentIdentityAddress);
+        const subIdResult = await createGameSubId(subIdName, config.parentIdentityAddress, config.parentIdentityName);
         subIdAddress = subIdResult.address;
         await prisma.gameSession.update({
           where: { gameId: game.id },

@@ -1,6 +1,6 @@
-import { CHESS_VDXF_KEYS } from '../normal/vdxf-keys';
 import { dd } from '@/app/utils/data-descriptor';
 import { rpcCall, buildSubIdFullName } from '@/app/utils/verus-rpc';
+import type { VDXFKeySet } from '@/app/games/types';
 
 export interface LiveGameState {
   white: string;
@@ -26,28 +26,28 @@ export interface LiveGameState {
  * Build contentmultimap from the current live game state.
  * Called on every move to update the SubID.
  */
-function buildContentMultimap(state: LiveGameState): Record<string, object[]> {
-  const K = CHESS_VDXF_KEYS;
+function buildContentMultimap(state: LiveGameState, keys: VDXFKeySet): Record<string, object[]> {
+  const K = keys;
 
   const cmm: Record<string, object[]> = {
-    [K.version.vdxfid]:      [dd('1',                              K.version.uri)],
-    [K.white.vdxfid]:        [dd(state.white,                      K.white.uri)],
-    [K.black.vdxfid]:        [dd(state.black,                      K.black.uri)],
-    [K.moves.vdxfid]:        [dd(JSON.stringify(state.moves),      K.moves.uri, 'application/json')],
-    [K.movecount.vdxfid]:    [dd(String(state.moveCount),          K.movecount.uri)],
-    [K.startedat.vdxfid]:    [dd(String(state.startedAt),          K.startedat.uri)],
-    [K.mode.vdxfid]:         [dd(state.mode,                       K.mode.uri)],
-    [K.status.vdxfid]:       [dd(state.status,                     K.status.uri)],
-    [K.whiteopensig.vdxfid]: [dd(state.whiteOpenSig,               K.whiteopensig.uri)],
-    [K.blackopensig.vdxfid]: [dd(state.blackOpenSig,               K.blackopensig.uri)],
+    [K.version.vdxfid]:        [dd('1',                              K.version.uri)],
+    [K.player1.vdxfid]:        [dd(state.white,                      K.player1.uri)],
+    [K.player2.vdxfid]:        [dd(state.black,                      K.player2.uri)],
+    [K.moves.vdxfid]:          [dd(JSON.stringify(state.moves),      K.moves.uri, 'application/json')],
+    [K.movecount.vdxfid]:      [dd(String(state.moveCount),          K.movecount.uri)],
+    [K.startedat.vdxfid]:      [dd(String(state.startedAt),          K.startedat.uri)],
+    [K.mode.vdxfid]:           [dd(state.mode,                       K.mode.uri)],
+    [K.status.vdxfid]:         [dd(state.status,                     K.status.uri)],
+    [K.player1opensig.vdxfid]: [dd(state.whiteOpenSig,               K.player1opensig.uri)],
+    [K.player2opensig.vdxfid]: [dd(state.blackOpenSig,               K.player2opensig.uri)],
   };
 
   // Add game-end fields when available
-  if (state.winner)   cmm[K.winner.vdxfid]   = [dd(state.winner,             K.winner.uri)];
-  if (state.result)   cmm[K.result.vdxfid]    = [dd(state.result,             K.result.uri)];
-  if (state.gameHash) cmm[K.gamehash.vdxfid]  = [dd(state.gameHash,           K.gamehash.uri)];
-  if (state.whiteSig) cmm[K.whitesig.vdxfid]  = [dd(state.whiteSig,           K.whitesig.uri)];
-  if (state.blackSig) cmm[K.blacksig.vdxfid]  = [dd(state.blackSig,           K.blacksig.uri)];
+  if (state.winner)   cmm[K.winner.vdxfid]     = [dd(state.winner,             K.winner.uri)];
+  if (state.result)   cmm[K.result.vdxfid]      = [dd(state.result,             K.result.uri)];
+  if (state.gameHash) cmm[K.gamehash.vdxfid]    = [dd(state.gameHash,           K.gamehash.uri)];
+  if (state.whiteSig) cmm[K.player1sig.vdxfid]  = [dd(state.whiteSig,           K.player1sig.uri)];
+  if (state.blackSig) cmm[K.player2sig.vdxfid]  = [dd(state.blackSig,           K.player2sig.uri)];
   if (state.duration !== undefined) {
     cmm[K.duration.vdxfid] = [dd(String(state.duration), K.duration.uri + ' (seconds)')];
   }
@@ -65,14 +65,16 @@ function buildContentMultimap(state: LiveGameState): Record<string, object[]> {
 export async function updateGameOnChain(
   subIdName: string,
   state: LiveGameState,
+  keys: VDXFKeySet,
+  parentIdentityName?: string,
 ): Promise<{ txid: string }> {
-  const fullName = buildSubIdFullName(subIdName);
+  const fullName = buildSubIdFullName(subIdName, parentIdentityName);
 
   // Get current identity to preserve non-game fields
   const identityResult = await rpcCall('getidentity', [fullName]);
   const identity = identityResult.identity;
 
-  const contentmultimap = buildContentMultimap(state);
+  const contentmultimap = buildContentMultimap(state, keys);
 
   const updateParams = {
     ...identity,

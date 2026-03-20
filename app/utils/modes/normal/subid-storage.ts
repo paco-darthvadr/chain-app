@@ -4,9 +4,10 @@ import type { VDXFKeySet } from '@/app/games/types';
 
 export async function createGameSubId(
   subIdName: string,
-  parentIdentityAddress?: string
+  parentIdentityAddress?: string,
+  parentIdentityName?: string
 ): Promise<{ address: string }> {
-  const fullName = buildSubIdFullName(subIdName);
+  const fullName = buildSubIdFullName(subIdName, parentIdentityName);
 
   // Check if SubID already exists
   try {
