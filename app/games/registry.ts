@@ -1,6 +1,9 @@
 import type { GameConfig } from './types';
+import { chessConfig } from './chess/config';
 
-const GAME_REGISTRY: Record<string, GameConfig> = {};
+const GAME_REGISTRY: Record<string, GameConfig> = {
+  chess: chessConfig,
+};
 
 export function getGameConfig(type: string): GameConfig {
   const config = GAME_REGISTRY[type];
