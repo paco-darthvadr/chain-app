@@ -9,6 +9,7 @@ export interface Challenge {
   mode: string;
   boardTheme: string;
   logoMode: string;
+  gameType?: string;
   challengerStatus: 'available' | 'in-game' | 'offline';
   timestamp: number;
   state: 'incoming' | 'sent' | 'accepted-waiting' | 'opponent-ready';

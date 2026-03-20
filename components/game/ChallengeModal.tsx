@@ -3,10 +3,11 @@
 import { useState } from 'react';
 import { Button } from '../ui/button';
 import { BOARD_THEMES, BoardTheme, LogoMode } from '@/app/utils/board-themes';
+import { getAllGameTypes } from '@/app/games/registry';
 
 interface ChallengeModalProps {
   targetUser: { id: string; displayName: string | null; verusId: string };
-  onConfirm: (settings: { mode: string; boardTheme: string; logoMode: LogoMode }) => void;
+  onConfirm: (settings: { mode: string; boardTheme: string; logoMode: LogoMode; gameType: string }) => void;
   onClose: () => void;
 }
 
@@ -55,13 +56,28 @@ function MiniBoard({ theme, logoMode }: { theme: BoardTheme; logoMode: LogoMode 
   );
 }
 
+const gameTypes = getAllGameTypes();
+
 export default function ChallengeModal({ targetUser, onConfirm, onClose }: ChallengeModalProps) {
+  const [selectedGameType, setSelectedGameType] = useState<string>('chess');
   const [mode, setMode] = useState<string>('normal');
   const [selectedTheme, setSelectedTheme] = useState<string>('classic');
   const [logoMode, setLogoMode] = useState<LogoMode>('off');
 
+  const currentGameConfig = gameTypes.find(g => g.type === selectedGameType);
+  const showcaseDisabled = currentGameConfig ? !currentGameConfig.chainEnabled : false;
+
+  const handleGameTypeSelect = (type: string) => {
+    setSelectedGameType(type);
+    const config = gameTypes.find(g => g.type === type);
+    // If the new game type doesn't support chain, reset showcase mode to normal
+    if (config && !config.chainEnabled && mode === 'showcase') {
+      setMode('normal');
+    }
+  };
+
   const handleConfirm = () => {
-    onConfirm({ mode, boardTheme: selectedTheme, logoMode });
+    onConfirm({ mode, boardTheme: selectedTheme, logoMode, gameType: selectedGameType });
   };
 
   return (
@@ -71,6 +87,25 @@ export default function ChallengeModal({ targetUser, onConfirm, onClose }: Chall
           Challenge {targetUser.displayName || targetUser.verusId}
         </h2>
         <p className="text-sm text-muted-foreground mb-4">Configure your game settings</p>
+
+        {/* Game Type Picker */}
+        {gameTypes.length > 1 && (
+          <div className="mb-4">
+            <label className="text-sm font-medium block mb-2">Game Type</label>
+            <div className="flex gap-2 flex-wrap">
+              {gameTypes.map((gt) => (
+                <Button
+                  key={gt.type}
+                  variant={selectedGameType === gt.type ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => handleGameTypeSelect(gt.type)}
+                >
+                  {gt.icon} {gt.displayName}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Mode Picker */}
         <div className="mb-4">
@@ -86,13 +121,18 @@ export default function ChallengeModal({ targetUser, onConfirm, onClose }: Chall
             <Button
               variant={mode === 'showcase' ? 'default' : 'outline'}
               size="sm"
-              onClick={() => setMode('showcase')}
+              onClick={() => !showcaseDisabled && setMode('showcase')}
+              disabled={showcaseDisabled}
+              className={showcaseDisabled ? 'opacity-40 cursor-not-allowed' : ''}
             >
               Showcase
             </Button>
           </div>
           {mode === 'showcase' && (
             <p className="text-xs text-amber-400 mt-1">Every move stored on-chain live</p>
+          )}
+          {showcaseDisabled && (
+            <p className="text-xs text-muted-foreground mt-1">Showcase mode not available for this game type</p>
           )}
         </div>
 

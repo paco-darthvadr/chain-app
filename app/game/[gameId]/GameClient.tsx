@@ -14,12 +14,12 @@ import { getGame, updateGame, endGame } from './actions';
 import { Pawn } from '@/app/games/chess/models/Pawn';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import GameOver from '@/components/chessboard/GameOver';
-import GameMoves from '@/components/chessboard/GameMoves';
+import GameOver from '@/components/game/GameOver';
+import GameMoves from '@/components/game/GameMoves';
 import { useRouter } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import SubIdStatus from '@/components/chessboard/SubIdStatus';
-import ShowcaseSigningPrompt from '@/components/chessboard/ShowcaseSigningPrompt';
+import SubIdStatus from '@/components/game/SubIdStatus';
+import ShowcaseSigningPrompt from '@/components/game/ShowcaseSigningPrompt';
 
 interface Move {
     piece: string;

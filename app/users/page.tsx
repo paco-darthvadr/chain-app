@@ -8,8 +8,8 @@ import { getUsers, getGamesForUser, deleteUser } from './actions';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { getGlobalSocket } from '@/components/dashboard/SocketRegistration';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import BlockchainInfoDialog from '@/components/chessboard/BlockchainInfoDialog';
-import ChallengeModal from '@/components/chessboard/ChallengeModal';
+import BlockchainInfoDialog from '@/components/game/BlockchainInfoDialog';
+import ChallengeModal from '@/components/game/ChallengeModal';
 interface User {
     id: string;
     verusId: string;
@@ -114,7 +114,7 @@ function UsersPage() {
         setChallengeTarget(user);
     };
 
-    const handleConfirmChallenge = ({ mode, boardTheme, logoMode }: { mode: string; boardTheme: string; logoMode: string }) => {
+    const handleConfirmChallenge = ({ mode, boardTheme, logoMode, gameType }: { mode: string; boardTheme: string; logoMode: string; gameType: string }) => {
         const socket = getGlobalSocket();
         if (!currentUserId || !challengeTarget) return;
         if (!socket) return alert("Not connected to server. Please wait and try again.");
@@ -129,6 +129,7 @@ function UsersPage() {
             mode,
             boardTheme,
             logoMode,
+            gameType,
         });
         setChallengeSent(challengeTarget.id);
         window.dispatchEvent(new CustomEvent('challenge-sent', {
@@ -139,6 +140,7 @@ function UsersPage() {
                 mode,
                 boardTheme,
                 logoMode,
+                gameType,
                 challengerStatus: 'available',
                 timestamp: Date.now(),
                 state: 'sent',
