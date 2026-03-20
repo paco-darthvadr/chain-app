@@ -1,0 +1,156 @@
+#checkerboard {
+  display: grid;
+  grid-template-columns: repeat(8, 100px);
+  grid-template-rows: repeat(8, 100px);
+  width: 800px;
+  height: 800px;
+  margin-top: 20px;
+}
+
+#checkerboard .tile {
+  width: 100px;
+  height: 100px;
+  position: relative;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+#checkerboard .dark-tile {
+  background-color: var(--square-dark, #606956);
+}
+
+#checkerboard .light-tile {
+  background-color: var(--square-light, #ebecd0);
+}
+
+#checkerboard .tile.tile-valid-move {
+  box-shadow: inset 0 0 0 100px rgba(0, 255, 0, 0.2);
+}
+
+/* Checker pieces — circular */
+.checker-piece {
+  position: absolute;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  z-index: 2;
+}
+
+.checker-piece:hover {
+  transform: scale(1.08);
+}
+
+.checker-piece.selected {
+  transform: scale(1.12);
+  box-shadow: 0 0 16px 4px rgba(255, 255, 0, 0.7);
+  z-index: 10;
+}
+
+.checker-piece.selectable {
+  cursor: pointer;
+}
+
+.checker-piece.selectable:hover {
+  box-shadow: 0 0 10px 2px rgba(255, 255, 255, 0.4);
+}
+
+/* Red pieces */
+.checker-piece.team-red {
+  background: radial-gradient(circle at 35% 35%, #ff4444, #cc0000 60%, #990000);
+  border: 3px solid #880000;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4), inset 0 1px 2px rgba(255, 255, 255, 0.2);
+}
+
+/* Black pieces */
+.checker-piece.team-black {
+  background: radial-gradient(circle at 35% 35%, #555555, #2a2a2a 60%, #111111);
+  border: 3px solid #000000;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.5), inset 0 1px 2px rgba(255, 255, 255, 0.1);
+}
+
+/* King crown indicator */
+.king-crown {
+  font-size: 28px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+  pointer-events: none;
+}
+
+.team-red .king-crown {
+  color: #ffdd44;
+}
+
+.team-black .king-crown {
+  color: #ffdd44;
+}
+
+/* Valid move dot on empty squares */
+.checker-move-indicator {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background-color: rgba(0, 200, 0, 0.4);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* Jump target ring on occupied squares */
+.checker-jump-indicator {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  background-color: rgba(255, 100, 0, 0.25);
+  border: 3px solid rgba(255, 100, 0, 0.6);
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 5;
+  animation: checkerPulse 1.2s infinite;
+}
+
+@keyframes checkerPulse {
+  0% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.7;
+  }
+}
+
+/* Game over overlay */
+.checkers-game-over {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.55);
+  z-index: 20;
+  border-radius: 4px;
+}
+
+.checkers-game-over-text {
+  background: rgba(0, 0, 0, 0.85);
+  color: white;
+  padding: 16px 32px;
+  border-radius: 8px;
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+  max-width: 80%;
+}

@@ -1,8 +1,10 @@
 import type { GameConfig } from './types';
 import { chessConfig } from './chess/config';
+import { checkersConfig } from './checkers/config';
 
 const GAME_REGISTRY: Record<string, GameConfig> = {
   chess: chessConfig,
+  checkers: checkersConfig,
 };
 
 export function getGameConfig(type: string): GameConfig {
