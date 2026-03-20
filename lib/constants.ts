@@ -19,8 +19,13 @@ export const SidebarItems = [
         icon: Users,
     },
     {
-        href: "/games",
-        label: "On-Chain Games",
+        href: "/chess/games",
+        label: "Chess On-Chain",
+        icon: Trophy,
+    },
+    {
+        href: "/checkers/games",
+        label: "Checkers On-Chain",
         icon: Trophy,
     },
     {
@@ -30,7 +35,7 @@ export const SidebarItems = [
     },
     {
         href: "/game",
-        label: "Offline Game",
+        label: "Chess Offline",
         icon: Crown,
     },
     {
@@ -38,4 +43,4 @@ export const SidebarItems = [
         label: "Settings",
         icon: Settings,
     },
-]; 
+];
