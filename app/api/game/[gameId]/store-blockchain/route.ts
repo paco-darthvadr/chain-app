@@ -22,6 +22,26 @@ export async function POST(request: Request, { params }: { params: { gameId: str
             return NextResponse.json({ error: 'Game is not completed' }, { status: 400 });
         }
 
+        // Check if already stored — allow tournament to overwrite normal
+        let requestIsTournament = false;
+        try {
+            const body = await request.clone().json();
+            requestIsTournament = body?.tournament === true;
+        } catch {}
+
+        if (gameForMode.blockchainTxId && gameForMode.blockchainTxId !== 'PROCESSING') {
+            // Already stored — tournament trumps normal (allow overwrite)
+            if (requestIsTournament) {
+                console.log(`[Store] Tournament overwrite for game ${params.gameId}`);
+            } else {
+                return NextResponse.json({
+                    success: true,
+                    message: 'Game already stored on blockchain',
+                    transactionId: gameForMode.blockchainTxId,
+                });
+            }
+        }
+
         const handler = getModeHandler(gameForMode.mode);
 
         // Run game-end verification first
@@ -33,14 +53,8 @@ export async function POST(request: Request, { params }: { params: { gameId: str
             }, { status: 400 });
         }
 
-        // Check if tournament storage was requested (includes per-move signatures)
-        let includeMovesSigs = false;
-        try {
-            const body = await request.json();
-            includeMovesSigs = body?.tournament === true;
-        } catch (e) {
-            // No body or not JSON — default to normal
-        }
+        // Use already-parsed tournament flag
+        const includeMovesSigs = requestIsTournament;
 
         // Store on chain — pass tournament flag via game object
         const gameWithFlags = { ...gameForMode, _includeMovesSigs: includeMovesSigs };
