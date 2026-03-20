@@ -683,7 +683,7 @@ const GameClient = ({ game }: GameClientProps) => {
                             </div>
                         </div> */}
                         
-                        <Chessboard pieces={board.pieces} playMove={playMove} bottomColor={currentPlayer} />
+                        <Chessboard pieces={board.pieces} playMove={playMove} bottomColor={currentPlayer} boardTheme={gameState.boardTheme || 'classic'} logoMode={gameState.logoMode || 'off'} />
                         {!gameResult && currentPlayer && (
                             <Button variant="destructive" size="sm" onClick={handleResign}>
                                 Resign
