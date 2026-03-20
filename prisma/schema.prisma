@@ -87,3 +87,15 @@ model GameCounter {
   id        String  @id @default("singleton")
   nextGame  Int     @default(1)
 }
+
+model SubIdPool {
+  id          String   @id @default(cuid())
+  subIdName   String   @unique  // "game0017"
+  gameNumber  Int      @unique  // 17
+  address     String?            // i-address once registered
+  status      String   @default("registering") // "registering" | "ready" | "used"
+  commitTxId  String?            // registernamecommitment txid
+  createdAt   DateTime @default(now())
+  usedAt      DateTime?
+  usedByGameId String?           // links to Game.id when assigned
+}
