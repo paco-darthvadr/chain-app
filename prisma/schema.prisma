@@ -80,7 +80,9 @@ model GameSession {
   player2FinalSig   String?   // player2's closing signature on gameHash
   player1OpeningSig String?   // showcase: player1's opening commitment signature
   player2OpeningSig String?   // showcase: player2's opening commitment signature
-  chainSyncedMoveCount Int  @default(0) // showcase: how many moves are confirmed on-chain
+  chainSentMoveCount      Int     @default(0) // showcase: moves sent to mempool (txid received)
+  chainConfirmedMoveCount Int     @default(0) // showcase: moves confirmed on-chain (tx has confirmations)
+  chainLastTxId           String? // txid of the latest successful updateidentity batch
   verifiedAt      DateTime? // when server verified all moves + sigs
   storedAt        DateTime? // when written to chain
   txId            String?   // blockchain tx ID

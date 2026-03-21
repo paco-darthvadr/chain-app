@@ -274,7 +274,8 @@ function GenericGameClient({ game }: { game: any }) {
                                 boardState={boardState}
                                 moves={moveHistory}
                                 currentPlayer={currentPlayer}
-                                chainSyncedMoves={chainSync.syncedMoves}
+                                chainSentMoves={chainSync.sentMoves}
+                                chainConfirmedMoves={chainSync.confirmedMoves}
                                 mode={game.mode}
                             />
                         </Suspense>
@@ -950,7 +951,8 @@ const GameClient = ({ game }: GameClientProps) => {
                         whitePlayer={gameState.player1}
                         blackPlayer={gameState.player2}
                         blockchainStatus={blockchainStatus}
-                        chainSyncedMoves={chainSync.syncedMoves}
+                        chainSentMoves={chainSync.sentMoves}
+                                chainConfirmedMoves={chainSync.confirmedMoves}
                         mode={(gameState as any).mode}
                     />
                 </div>

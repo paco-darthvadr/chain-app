@@ -6,11 +6,12 @@ import { Team } from './types';
 import ChainSyncBar from '@/components/game/ChainSyncBar';
 
 interface CheckersSidebarProps extends SidebarProps {
-  chainSyncedMoves?: number;
+  chainSentMoves?: number;
+  chainConfirmedMoves?: number;
   mode?: string;
 }
 
-export default function CheckersSidebar({ boardState, moves, currentPlayer, chainSyncedMoves, mode }: CheckersSidebarProps) {
+export default function CheckersSidebar({ boardState, moves, currentPlayer, chainSentMoves, chainConfirmedMoves, mode }: CheckersSidebarProps) {
   const state = boardState as unknown as CheckersState;
   const capturedRed = state.capturedRed || 0;
   const capturedBlack = state.capturedBlack || 0;
@@ -21,10 +22,13 @@ export default function CheckersSidebar({ boardState, moves, currentPlayer, chai
   const getChainIcon = (index: number) => {
     if (mode !== 'showcase') return null;
     const moveNum = index + 1;
-    if (chainSyncedMoves !== undefined && chainSyncedMoves >= moveNum) {
-      return <span className="inline-block w-2 h-2 rounded-full bg-green-400 flex-shrink-0" title="On chain" />;
+    if (chainConfirmedMoves !== undefined && chainConfirmedMoves >= moveNum) {
+      return <span className="inline-block w-2 h-2 rounded-full bg-green-400 flex-shrink-0" title="Confirmed on chain" />;
     }
-    return <span className="inline-block w-2 h-2 rounded-full bg-yellow-400 flex-shrink-0" title="Pending chain sync" />;
+    if (chainSentMoves !== undefined && chainSentMoves >= moveNum) {
+      return <span className="inline-block w-2 h-2 rounded-full bg-yellow-400 flex-shrink-0" title="Sent to mempool" />;
+    }
+    return <span className="inline-block w-2 h-2 rounded-full bg-red-400/60 flex-shrink-0" title="Not sent yet" />;
   };
 
   return (
@@ -78,7 +82,7 @@ export default function CheckersSidebar({ boardState, moves, currentPlayer, chai
             ))
           )}
         </div>
-        <ChainSyncBar syncedMoves={chainSyncedMoves ?? 0} totalMoves={moves.length} mode={mode ?? ''} />
+        <ChainSyncBar sentMoves={chainSentMoves ?? 0} confirmedMoves={chainConfirmedMoves ?? 0} totalMoves={moves.length} mode={mode ?? ''} />
       </div>
     </div>
   );

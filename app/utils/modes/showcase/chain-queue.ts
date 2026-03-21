@@ -84,10 +84,10 @@ async function processQueue(gameId: string): Promise<void> {
             latest.parentIdentityName,
           );
           console.log(`[Showcase Queue] Updated ${latest.subIdName}, move ${latest.moveNum}, txid: ${txid}`);
-          // Update chain sync count so the UI can show which moves are on-chain
+          // Track sent (mempool) and last txid — confirmation checked lazily by API
           await prisma.gameSession.updateMany({
             where: { gameId },
-            data: { chainSyncedMoveCount: latest.moveNum },
+            data: { chainSentMoveCount: latest.moveNum, chainLastTxId: txid },
           });
           success = true;
         } catch (error: any) {
