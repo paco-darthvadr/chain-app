@@ -18,6 +18,36 @@ The app has no centralized auth state. User identity lives in `localStorage`, fo
 
 **Fix:** Move chess state management (Board model hydration, promotion, move history tracking) into the chess `Board.tsx` component. Have it expose only `onMove(moveString, newBoardState)` like the checkers board does.
 
+### GenericGameClient — Showcase Signing + Rematch (Blocks multi-game scaling)
+`GenericGameClient` has no showcase signing flow — `ShowcaseSigningPrompt` is not rendered, `move-signed` socket event is not handled. Any non-chess game in showcase mode silently has no signing. Rematch handler is a stub (`// TODO`). Also, chess imports at the top of `GameClient.tsx` are loaded for ALL games.
+
+**Fix:** Port the chess client's signing state machine into GenericGameClient. Implement rematch UI. Long-term: encapsulate chess so it uses GenericGameClient too (see Chess GameClient Encapsulation above).
+
+### Data-Driven Sidebar Nav (Blocks multi-game scaling)
+`lib/constants.ts` has hardcoded per-game links. Every new game requires a manual edit. With 10 games this explodes.
+
+**Fix:** Generate sidebar items from `getAllGameTypes()` — loop over registered games and create links dynamically. Remove hardcoded chess/checkers entries.
+
+### Remove Chess Env Var Fallbacks (Blocks multi-game scaling)
+`subid-pool.ts` and `subid-storage.ts` silently fall back to `process.env.CHESSGAME_IDENTITY_ADDRESS` if a game's config doesn't pass its address. A new game with missing env vars would silently register SubIDs under `ChessGame@`.
+
+**Fix:** Remove the `CHESSGAME_*` fallbacks. Add startup validation that warns if `chainEnabled: true` but identity address/WIF is empty.
+
+### Board Theme Custom Mode
+`themeMode: 'custom'` exists in the GameConfig interface but is dead code — nothing reads it. Non-grid games (mancala, card games) get a meaningless 8x8 theme picker. MiniBoard preview in ChallengeModal is always 8x8.
+
+**Fix:** Either wire up `'custom'` (gate theme picker per game, pass custom theme config) or remove it and let non-grid games ignore the theme prop.
+
+### GameOver Chess-isms
+- `currentPlayer: 'white' | 'black'` type in GameOverProps — should be `1 | 2`
+- Checkers-specific move count branch (`capturedRed`/`capturedBlack`) — add `getMoveCount()` to GameConfig instead
+- Move count `?` for non-chess games — fixed with `_count.moves` but could be cleaner
+
+### Env Var Sprawl
+3 env vars per game type (NAME, ADDRESS, WIF). At 10 games = 30 env vars. No startup validation. Naming convention is by convention only, not enforced.
+
+**Fix:** Consider a single JSON config file or env var prefix convention with auto-discovery. Add startup check.
+
 ## Medium Priority
 
 ### Chess Sidebar Component
