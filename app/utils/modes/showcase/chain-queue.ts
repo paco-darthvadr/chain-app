@@ -61,6 +61,18 @@ async function processQueue(gameId: string): Promise<void> {
         console.log(`[Showcase Queue] Skipping ${skipped} intermediate update(s), sending move ${latest.moveNum}`);
       }
 
+      // Wait for SubID to be ready (background registration may still be running)
+      let subIdReady = false;
+      while (!subIdReady) {
+        const session = await prisma.gameSession.findUnique({ where: { gameId } });
+        if (session?.subIdAddress) {
+          subIdReady = true;
+        } else {
+          console.log(`[Showcase Queue] SubID not ready yet for ${gameId}, waiting 5s...`);
+          await new Promise((r) => setTimeout(r, 5000));
+        }
+      }
+
       // Retry loop: keep trying until success or daemon crash
       let success = false;
       while (!success) {

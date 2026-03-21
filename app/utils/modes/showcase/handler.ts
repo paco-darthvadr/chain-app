@@ -79,25 +79,14 @@ export const showcaseHandler: ModeHandler = {
       blackOpenSig: session.player2OpeningSig || '',
     };
 
-    // Enqueue chain update — don't block the move/socket relay
-    (async () => {
-      try {
-        const freshSession = await prisma.gameSession.findUnique({ where: { gameId: game.id } });
-        if (!freshSession?.subIdAddress) {
-          console.log(`[Showcase] SubID ${subIdName} not ready yet, skipping chain update for move ${moveNum}`);
-          return;
-        }
-        enqueueChainUpdate(game.id, {
-          subIdName,
-          liveState,
-          keys: config.vdxfKeys,
-          parentIdentityName: config.parentIdentityName,
-          moveNum,
-        });
-      } catch (error: any) {
-        console.error(`[Showcase] Failed to enqueue chain update for move ${moveNum}:`, error.message);
-      }
-    })();
+    // Always enqueue — the queue worker waits for SubID to be ready
+    enqueueChainUpdate(game.id, {
+      subIdName,
+      liveState,
+      keys: config.vdxfKeys,
+      parentIdentityName: config.parentIdentityName,
+      moveNum,
+    });
 
     return { ...movePackage, signature };
   },
