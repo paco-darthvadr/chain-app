@@ -234,6 +234,11 @@ io.on('connection', (socket) => {
     // passes the received payload directly to createBoardFromState().
     socket.to(data.gameId).emit('update-board-state', data.boardState);
 
+    // Emit move string separately if available (for move history sidebar)
+    if (data.moveString) {
+        socket.to(data.gameId).emit('move-string', data.moveString);
+    }
+
     // Emit signed package separately if available (Normal mode)
     if (data.signedPackage) {
         socket.to(data.gameId).emit('move-signed', data.signedPackage);

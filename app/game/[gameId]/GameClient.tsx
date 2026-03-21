@@ -62,6 +62,7 @@ function GenericGameClient({ game }: { game: any }) {
     const [boardState, setBoardState] = useState(game.boardState);
     const [currentPlayer, setCurrentPlayer] = useState<1 | 2 | null>(null);
     const [gameResult, setGameResult] = useState<string | null>(null);
+    const [moveHistory, setMoveHistory] = useState<string[]>([]);
     const [socket, setSocket] = useState<Socket | null>(null);
     const router = useRouter();
     const hasUpdatedGameStatus = useRef(false);
@@ -92,6 +93,7 @@ function GenericGameClient({ game }: { game: any }) {
             if (gameResult) return;
             setBoardState(newBoardState);
             setGameState((prev: any) => ({ ...prev, boardState: newBoardState }));
+            // move string comes via separate 'move-string' event
 
             // Check if the received state ends the game
             const status = config.getGameStatus(newBoardState);
@@ -103,6 +105,10 @@ function GenericGameClient({ game }: { game: any }) {
             try {
                 new Audio('/sounds/move.mp3').play().catch(() => {});
             } catch (_) { /* ignore */ }
+        });
+
+        newSocket.on('move-string', (moveStr: string) => {
+            setMoveHistory(prev => [...prev, moveStr]);
         });
 
         newSocket.on('opponent-resigned', async () => {
@@ -147,6 +153,7 @@ function GenericGameClient({ game }: { game: any }) {
     const handleMove = useCallback(async (move: string, newBoardState: any) => {
         if (gameResult) return;
         setBoardState(newBoardState);
+        setMoveHistory(prev => [...prev, move]);
 
         // Save to DB
         const result = await updateGame(game.id, newBoardState, {
@@ -154,11 +161,12 @@ function GenericGameClient({ game }: { game: any }) {
             player: playerVerusId,
         });
 
-        // Emit to opponent
+        // Emit to opponent (include move string for their sidebar)
         if (socket) {
             socket.emit('move-made', {
                 gameId: game.id,
                 boardState: newBoardState,
+                moveString: move,
                 signedPackage: (result as any)?.signedPackage || null,
             });
         }
@@ -262,7 +270,7 @@ function GenericGameClient({ game }: { game: any }) {
                         <Suspense fallback={null}>
                             <config.SidebarComponent
                                 boardState={boardState}
-                                moves={[]}
+                                moves={moveHistory}
                                 currentPlayer={currentPlayer}
                             />
                         </Suspense>
