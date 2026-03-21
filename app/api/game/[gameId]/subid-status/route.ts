@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { rpcCall, buildSubIdFullName } from '@/app/utils/verus-rpc';
+import { getGameConfig } from '@/app/games/registry';
 
 // GET /api/game/[gameId]/subid-status — Check SubID registration progress
 export async function GET(request: Request, { params }: { params: { gameId: string } }) {
@@ -17,7 +18,10 @@ export async function GET(request: Request, { params }: { params: { gameId: stri
             return NextResponse.json({ status: 'none', message: 'No SubID assigned' });
         }
 
-        const fullName = buildSubIdFullName(session.subIdName);
+        // Get game to determine game type for correct parent identity
+        const game = await prisma.game.findUnique({ where: { id: params.gameId }, select: { gameType: true } });
+        const config = getGameConfig(game?.gameType || 'chess');
+        const fullName = buildSubIdFullName(session.subIdName, config.parentIdentityName);
 
         // If we already have the address stored, it's online
         if (session.subIdAddress) {

@@ -365,7 +365,7 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
                 </div>
                 <button
                   onClick={handleVerifyAndStore}
-                  className="w-full bg-green-600 text-white py-2 px-4 rounded hover:bg-green-700 transition-colors text-sm"
+                  className="w-full bg-yellow-600 text-white py-2 px-4 rounded hover:bg-yellow-700 transition-colors text-sm"
                 >
                   Retry
                 </button>
