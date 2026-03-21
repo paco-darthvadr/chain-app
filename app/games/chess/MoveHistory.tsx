@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import ChainSyncBar from '@/components/game/ChainSyncBar';
 import { useRef, useEffect } from 'react';
 
 interface Move {
@@ -28,9 +29,20 @@ interface MoveHistoryProps {
     whitePlayer?: Player;
     blackPlayer?: Player;
     blockchainStatus?: Record<string, 'storing' | 'processing' | 'stored' | 'failed' | null>;
+    chainSyncedMoves?: number;
+    mode?: string;
 }
 
-const MoveHistory = ({ moves, currentTurn, isCheck, isCheckmate, whitePlayer, blackPlayer, blockchainStatus }: MoveHistoryProps) => {
+const MoveHistory = ({ moves, currentTurn, isCheck, isCheckmate, whitePlayer, blackPlayer, blockchainStatus, chainSyncedMoves, mode }: MoveHistoryProps) => {
+    const getChainIcon = (index: number) => {
+        if (mode !== 'showcase') return null;
+        const moveNum = index + 1;
+        if (chainSyncedMoves !== undefined && chainSyncedMoves >= moveNum) {
+            return <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-400 flex-shrink-0" title="On chain" />;
+        }
+        return <span className="inline-block w-2.5 h-2.5 rounded-full bg-yellow-400 flex-shrink-0" title="Pending chain sync" />;
+    };
+
     const getBlockchainStatusIcon = (move: Move) => {
         const movekey = `${move.from}-${move.to}`;
         const moveStatus = blockchainStatus?.[movekey];
@@ -63,8 +75,8 @@ const MoveHistory = ({ moves, currentTurn, isCheck, isCheckmate, whitePlayer, bl
                 <CardTitle className="text-lg text-foreground">Move History</CardTitle>
                 <div className="text-sm flex items-center justify-between">
                     <span className={`font-bold px-2 py-1 rounded ${
-                        currentTurn === 'w' 
-                            ? 'bg-primary text-primary-foreground' 
+                        currentTurn === 'w'
+                            ? 'bg-primary text-primary-foreground'
                             : 'bg-secondary text-secondary-foreground'
                     }`}>
                         {currentTurn === 'w' ? "White's turn" : "Black's turn"}
@@ -108,16 +120,17 @@ const MoveHistory = ({ moves, currentTurn, isCheck, isCheckmate, whitePlayer, bl
                                                 (promotes to {move.promotion})
                                             </span>
                                         )}
-                                        {getBlockchainStatusIcon(move)}
+                                        {mode === 'showcase' ? getChainIcon(index) : getBlockchainStatusIcon(move)}
                                     </div>
                                 );
                             })}
                         </div>
                     )}
                 </div>
+                <ChainSyncBar syncedMoves={chainSyncedMoves ?? 0} totalMoves={moves.length} mode={mode ?? ''} />
             </CardContent>
         </Card>
     );
 };
 
-export default MoveHistory; 
+export default MoveHistory;

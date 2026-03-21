@@ -21,6 +21,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import SubIdStatus from '@/components/game/SubIdStatus';
 import ShowcaseSigningPrompt from '@/components/game/ShowcaseSigningPrompt';
 import { getGameConfig } from '@/app/games/registry';
+import { useChainSync } from '@/hooks/useChainSync';
 
 interface Move {
     piece: string;
@@ -66,6 +67,7 @@ function GenericGameClient({ game }: { game: any }) {
     const [socket, setSocket] = useState<Socket | null>(null);
     const router = useRouter();
     const hasUpdatedGameStatus = useRef(false);
+    const chainSync = useChainSync(game.id, game.mode || 'normal', !!gameResult);
 
     const playerVerusId = typeof window !== 'undefined'
         ? localStorage.getItem('currentUser') || '' : '';
@@ -272,6 +274,8 @@ function GenericGameClient({ game }: { game: any }) {
                                 boardState={boardState}
                                 moves={moveHistory}
                                 currentPlayer={currentPlayer}
+                                chainSyncedMoves={chainSync.syncedMoves}
+                                mode={game.mode}
                             />
                         </Suspense>
                     </div>
@@ -313,6 +317,7 @@ const GameClient = ({ game }: GameClientProps) => {
     const [incomingRematch, setIncomingRematch] = useState(false);
     const [socket, setSocket] = useState<Socket | null>(null);
     const [blockchainStatus, setBlockchainStatus] = useState<Record<string, 'storing' | 'processing' | 'stored' | 'failed' | null>>({});
+    const chainSync = useChainSync(game.id, (game as any).mode || 'normal', !!gameResult);
     const [showcaseSigningPhase, setShowcaseSigningPhase] = useState<'open' | 'close' | null>(null);
     const [showcaseMessage, setShowcaseMessage] = useState<string>('');
     const [showcaseReady, setShowcaseReady] = useState(false);
@@ -937,14 +942,16 @@ const GameClient = ({ game }: GameClientProps) => {
             <div className="flex flex-row gap-6 ml-auto" style={{ minWidth: '400px', maxWidth: '500px' }}>
                 <div style={{ width: '320px' }}>
                     <SubIdStatus gameId={gameState.id} mode={(gameState as any).mode || 'original'} />
-                    <MoveHistory 
-                        moves={moves} 
-                        currentTurn={getCurrentTurn()} 
-                        isCheck={isCheck()} 
-                        isCheckmate={isCheckmate()} 
+                    <MoveHistory
+                        moves={moves}
+                        currentTurn={getCurrentTurn()}
+                        isCheck={isCheck()}
+                        isCheckmate={isCheckmate()}
                         whitePlayer={gameState.player1}
                         blackPlayer={gameState.player2}
                         blockchainStatus={blockchainStatus}
+                        chainSyncedMoves={chainSync.syncedMoves}
+                        mode={(gameState as any).mode}
                     />
                 </div>
 

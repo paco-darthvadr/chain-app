@@ -3,14 +3,29 @@
 import type { SidebarProps } from '../types';
 import type { CheckersState } from './rules';
 import { Team } from './types';
+import ChainSyncBar from '@/components/game/ChainSyncBar';
 
-export default function CheckersSidebar({ boardState, moves, currentPlayer }: SidebarProps) {
+interface CheckersSidebarProps extends SidebarProps {
+  chainSyncedMoves?: number;
+  mode?: string;
+}
+
+export default function CheckersSidebar({ boardState, moves, currentPlayer, chainSyncedMoves, mode }: CheckersSidebarProps) {
   const state = boardState as unknown as CheckersState;
   const capturedRed = state.capturedRed || 0;
   const capturedBlack = state.capturedBlack || 0;
 
   const redPieces = state.pieces?.filter(p => p.team === Team.RED).length ?? 12;
   const blackPieces = state.pieces?.filter(p => p.team === Team.BLACK).length ?? 12;
+
+  const getChainIcon = (index: number) => {
+    if (mode !== 'showcase') return null;
+    const moveNum = index + 1;
+    if (chainSyncedMoves !== undefined && chainSyncedMoves >= moveNum) {
+      return <span className="inline-block w-2 h-2 rounded-full bg-green-400 flex-shrink-0" title="On chain" />;
+    }
+    return <span className="inline-block w-2 h-2 rounded-full bg-yellow-400 flex-shrink-0" title="Pending chain sync" />;
+  };
 
   return (
     <div className="flex flex-col gap-4 p-4 h-full">
@@ -57,11 +72,13 @@ export default function CheckersSidebar({ boardState, moves, currentPlayer }: Si
               <div key={i} className="flex items-center gap-2 text-xs font-mono py-0.5">
                 <span className="text-muted-foreground w-6 text-right">{i + 1}.</span>
                 <div className={`w-2 h-2 rounded-full ${i % 2 === 0 ? 'bg-red-600' : 'bg-gray-800 dark:bg-gray-700'}`} />
-                <span>{move}</span>
+                <span className="flex-1">{move}</span>
+                {getChainIcon(i)}
               </div>
             ))
           )}
         </div>
+        <ChainSyncBar syncedMoves={chainSyncedMoves ?? 0} totalMoves={moves.length} mode={mode ?? ''} />
       </div>
     </div>
   );

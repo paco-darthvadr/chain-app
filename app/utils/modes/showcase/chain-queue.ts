@@ -1,5 +1,6 @@
 import { updateGameOnChain, LiveGameState } from './live-storage';
 import { waitForNextBlock } from '@/app/utils/verus-rpc';
+import { prisma } from '@/lib/prisma';
 import type { VDXFKeySet } from '@/app/games/types';
 
 // --- Types ---
@@ -71,6 +72,11 @@ async function processQueue(gameId: string): Promise<void> {
             latest.parentIdentityName,
           );
           console.log(`[Showcase Queue] Updated ${latest.subIdName}, move ${latest.moveNum}, txid: ${txid}`);
+          // Update chain sync count so the UI can show which moves are on-chain
+          await prisma.gameSession.updateMany({
+            where: { gameId },
+            data: { chainSyncedMoveCount: latest.moveNum },
+          });
           success = true;
         } catch (error: any) {
           if (isDaemonDown(error)) {
