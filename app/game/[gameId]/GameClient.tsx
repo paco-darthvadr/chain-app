@@ -69,6 +69,16 @@ function GenericGameClient({ game }: { game: any }) {
     const hasUpdatedGameStatus = useRef(false);
     const chainSync = useChainSync(game.id, game.mode || 'normal', !!gameResult);
 
+    // Showcase signing state
+    const [showcaseSigningPhase, setShowcaseSigningPhase] = useState<'open' | 'close' | null>(null);
+    const [showcaseMessage, setShowcaseMessage] = useState<string>('');
+    const [showcaseReady, setShowcaseReady] = useState(game.mode !== 'showcase');
+    const showcaseOnSigned = useCallback(() => {}, []);
+    const showcaseOnBothSigned = useCallback(() => {
+        setShowcaseSigningPhase(null);
+        setShowcaseReady(true);
+    }, []);
+
     const playerVerusId = typeof window !== 'undefined'
         ? localStorage.getItem('currentUser') || '' : '';
 
@@ -139,6 +149,35 @@ function GenericGameClient({ game }: { game: any }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [game.id, playerVerusId]);
 
+    // Showcase: check signing status on mount
+    useEffect(() => {
+        if (game.mode !== 'showcase' || !currentPlayer) return;
+
+        const checkShowcaseSigning = async () => {
+            try {
+                const res = await fetch(`/api/game/${game.id}/showcase-sign`);
+                const data = await res.json();
+                if (!data.message) return;
+
+                const playerSide = currentPlayer === 1 ? 'player1HasSigned' : 'player2HasSigned';
+                const otherSide = currentPlayer === 1 ? 'player2HasSigned' : 'player1HasSigned';
+                if (!data[playerSide]) {
+                    setShowcaseMessage(data.message);
+                    setShowcaseSigningPhase('open');
+                } else if (data.player1HasSigned && data.player2HasSigned) {
+                    setShowcaseReady(true);
+                } else if (data[playerSide] && !data[otherSide]) {
+                    setShowcaseMessage(data.message);
+                    setShowcaseSigningPhase('open');
+                }
+            } catch (e) {
+                console.error('[Showcase] Failed to check signing status:', e);
+            }
+        };
+
+        checkShowcaseSigning();
+    }, [game.mode, game.id, currentPlayer]);
+
     // Check for completed game on mount
     useEffect(() => {
         if (gameState.status === 'COMPLETED' && !gameResult) {
@@ -154,6 +193,7 @@ function GenericGameClient({ game }: { game: any }) {
     // Handle move
     const handleMove = useCallback(async (move: string, newBoardState: any) => {
         if (gameResult) return;
+        if (!showcaseReady) return; // Block moves until showcase signing is done
         setBoardState(newBoardState);
         setMoveHistory(prev => [...prev, move]);
 
@@ -181,7 +221,7 @@ function GenericGameClient({ game }: { game: any }) {
             await endGame(game.id, winningPlayer);
             setGameResult(status.resultDisplay);
         }
-    }, [socket, playerVerusId, game.id, config, gameResult]);
+    }, [socket, playerVerusId, game.id, config, gameResult, showcaseReady]);
 
     const handleResign = async () => {
         if (!socket || !currentPlayer || gameResult) return;
@@ -230,6 +270,15 @@ function GenericGameClient({ game }: { game: any }) {
 
     return (
         <div className="flex flex-col md:flex-row gap-4 p-4 max-w-7xl mx-auto">
+            {showcaseSigningPhase === 'open' && (
+                <ShowcaseSigningPrompt
+                    gameId={game.id}
+                    message={showcaseMessage}
+                    currentPlayer={currentPlayerColor}
+                    onSigned={showcaseOnSigned}
+                    onBothSigned={showcaseOnBothSigned}
+                />
+            )}
             {gameResult && (
                 <GameOver
                     game={gameState}
