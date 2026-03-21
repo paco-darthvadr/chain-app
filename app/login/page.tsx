@@ -193,13 +193,13 @@ const Login = () => {
                       </button>
                       <button
                         onClick={() => {
-                          const cmd = `signmessage "${verusIdDisplay}" "${cliChallenge.challenge}"`;
+                          const cmd = `run signmessage "${verusIdDisplay}" "${cliChallenge.challenge}"`;
                           navigator.clipboard.writeText(cmd);
                           setCliCopied('gui');
                           setTimeout(() => setCliCopied(false), 2000);
                         }}
                         className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${cliCopied === 'gui' ? 'bg-green-600 text-white' : 'bg-muted-foreground/10 hover:bg-muted-foreground/20 text-muted-foreground'}`}
-                        title="Copy for GUI: signmessage ..."
+                        title="Copy for GUI: run signmessage ..."
                       >
                         {cliCopied === 'gui' ? 'Copied!' : 'GUI'}
                       </button>

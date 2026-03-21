@@ -29,6 +29,7 @@ function UsersPage() {
     const [hasShownBlockchainInfo, setHasShownBlockchainInfo] = useState(false);
     const [challengeTarget, setChallengeTarget] = useState<User | null>(null);
     const [challengeSent, setChallengeSent] = useState<string | null>(null); // Store opponentId
+    const [userStatuses, setUserStatuses] = useState<Record<string, string>>({});
     const router = useRouter();
     const isFetchingRef = useRef(false);
 
@@ -100,11 +101,23 @@ function UsersPage() {
         window.addEventListener('socket:refresh-game-list', onRefreshGames);
         window.addEventListener('socket:refresh-user-list', onRefreshUsers);
 
+        // Fetch initial online statuses and listen for changes
+        const socket = getGlobalSocket();
+        if (socket) {
+            socket.emit('get-user-statuses', (statuses: Record<string, string>) => {
+                setUserStatuses(statuses);
+            });
+            socket.on('user-status-changed', ({ userId, status }: { userId: string; status: string }) => {
+                setUserStatuses(prev => ({ ...prev, [userId]: status }));
+            });
+        }
+
         return () => {
             window.removeEventListener('socket:challenge-failed', onChallengeFailed);
             window.removeEventListener('socket:challenge-cancelled', onChallengeCancelled);
             window.removeEventListener('socket:refresh-game-list', onRefreshGames);
             window.removeEventListener('socket:refresh-user-list', onRefreshUsers);
+            if (socket) socket.off('user-status-changed');
         };
     }, [fetchUsersAndGames]);
 
@@ -269,8 +282,15 @@ function UsersPage() {
                                                 <AvatarFallback>{(user.displayName || user.verusId).substring(0, 2).toUpperCase()}</AvatarFallback>
                                             </Avatar>
                                             <div>
-                                                <p className="font-semibold">{user.displayName || user.verusId}</p>
-                                                <p className="text-xs text-muted-foreground font-mono">{user.verusId}</p>
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${
+                                                        userStatuses[user.id] === 'available' ? 'bg-green-400' :
+                                                        userStatuses[user.id] === 'in-game' ? 'bg-yellow-400' :
+                                                        'bg-gray-400'
+                                                    }`} title={userStatuses[user.id] || 'offline'} />
+                                                    <p className="font-semibold">{user.displayName || user.verusId}</p>
+                                                </div>
+                                                <p className="text-xs text-muted-foreground font-mono ml-3.5">{user.verusId}</p>
                                             </div>
                                         </div>
                                         <Button

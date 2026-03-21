@@ -48,21 +48,21 @@ function getUserStatus(userId) {
 
 function notifyStatusChange(userId) {
   const status = getUserStatus(userId);
-  pendingChallenges.forEach(c => {
-    const notifyId = c.challengerId === userId ? c.challengeeId : c.challengerId;
-    if (notifyId === userId) return;
-    const notifySockets = userSockets[notifyId];
-    if (notifySockets) {
-      for (const sid of notifySockets) {
-        io.to(sid).emit('user-status-changed', { userId, status });
-      }
-    }
-  });
+  // Broadcast to ALL connected sockets so user lists update
+  io.emit('user-status-changed', { userId, status });
 }
 
 io.on('connection', (socket) => {
   console.log(`A user connected: ${socket.id}`);
   console.log(`Total connections: ${Object.keys(io.sockets.sockets).length}`);
+
+  socket.on('get-user-statuses', (callback) => {
+    const statuses = {};
+    for (const userId of Object.keys(userSockets)) {
+      statuses[userId] = getUserStatus(userId);
+    }
+    if (typeof callback === 'function') callback(statuses);
+  });
 
   socket.on('register-user', (userId) => {
     if (!userSockets[userId]) userSockets[userId] = new Set();
