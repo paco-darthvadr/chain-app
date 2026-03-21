@@ -3,7 +3,7 @@
 import { image } from 'qr-image';
 import { createWriteStream } from 'node:fs';
 import { checkUserExists } from "./utils/database.js";
-import { getverified, getVerifiedTinyUrl } from "./utils/deeplink.js";
+import { getverified, shortenUrl } from "./utils/deeplink.js";
 
 // Helper function to introduce a delay
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -20,7 +20,7 @@ export const getLoginQr = async (userId: string) => {
             return { error: "Could not generate deeplink." };
         }
     
-        const tinyurl = await getVerifiedTinyUrl(deeplinkurl);
+        const tinyurl = await shortenUrl(deeplinkurl);
     
         const qr_png = image(deeplinkurl, { type: 'png' });
         const pngname = `${userId}_qr_code.png`;
