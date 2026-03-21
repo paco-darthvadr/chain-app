@@ -101,7 +101,7 @@ function GenericGameClient({ game }: { game: any }) {
             }
 
             try {
-                new Audio('/sounds/move.mp3').play();
+                new Audio('/sounds/move.mp3').play().catch(() => {});
             } catch (_) { /* ignore */ }
         });
 
@@ -351,7 +351,7 @@ const GameClient = ({ game }: GameClientProps) => {
 
             // Play sound on opponent moves
             try {
-                new Audio('/sounds/move.mp3').play();
+                new Audio('/sounds/move.mp3').play().catch(() => {});
             } catch (error) {
                 console.error('Error playing move sound:', error);
             }
@@ -565,7 +565,7 @@ const GameClient = ({ game }: GameClientProps) => {
 
         // Play sound on move
         try {
-            new Audio('/sounds/move.mp3').play();
+            new Audio('/sounds/move.mp3').play().catch(() => {});
         } catch (error) {
             console.error('Error playing move sound:', error);
         }

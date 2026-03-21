@@ -91,7 +91,7 @@ const Game = () => {
                         
             // Play sound on move
             try {
-                new Audio('/sounds/move.mp3').play();
+                new Audio('/sounds/move.mp3').play().catch(() => {});
             } catch (error) {
                 console.error('Error playing move sound:', error);
             }
@@ -184,7 +184,7 @@ const Game = () => {
 
             // Play sound on move
             try {
-                new Audio('/sounds/move.mp3').play();
+                new Audio('/sounds/move.mp3').play().catch(() => {});
             } catch (error) {
                 console.error('Error playing move sound:', error);
             }
