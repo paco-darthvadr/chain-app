@@ -46,7 +46,7 @@ function MiniBoard({ theme, logoMode }: { theme: BoardTheme; logoMode: LogoMode 
             left: '25%',
             width: '50%',
             height: '50%',
-            opacity: logoMode === 'faded' ? 0.1 : 0.4,
+            opacity: logoMode === 'faded' ? 0.2 : 0.65,
             pointerEvents: 'none',
             filter: 'drop-shadow(0 0 1px rgba(0,0,0,0.3))',
           }}
