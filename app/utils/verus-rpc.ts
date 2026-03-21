@@ -42,6 +42,26 @@ export async function waitForConfirmation(
 }
 
 /**
+ * Wait for the next block to be mined.
+ * Polls getblockcount every 5 seconds until the height increments.
+ * Throws if no new block arrives within maxWaitMs.
+ */
+export async function waitForNextBlock(maxWaitMs: number = 300000): Promise<void> {
+  const startHeight = await rpcCall('getblockcount', []);
+  const start = Date.now();
+  while (Date.now() - start < maxWaitMs) {
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+    try {
+      const currentHeight = await rpcCall('getblockcount', []);
+      if (currentHeight > startHeight) return;
+    } catch {
+      // If we can't reach the daemon during polling, keep trying until timeout
+    }
+  }
+  throw new Error(`waitForNextBlock timed out after ${maxWaitMs}ms — no new block`);
+}
+
+/**
  * Build the full SubID name from a short name like "game0017".
  * Returns e.g. "game0017.ChessGame@"
  */
