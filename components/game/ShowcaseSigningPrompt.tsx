@@ -117,8 +117,8 @@ export default function ShowcaseSigningPrompt({
             return (
               <div className="text-left text-sm space-y-1 bg-muted p-3 rounded-md">
                 <p className="font-medium text-muted-foreground mb-2">You are signing:</p>
-                {data.white && <div className="flex justify-between"><span className="text-muted-foreground">{player1Label}:</span><span className="font-medium">{data.white}</span></div>}
-                {data.black && <div className="flex justify-between"><span className="text-muted-foreground">{player2Label}:</span><span className="font-medium">{data.black}</span></div>}
+                {data[player1Label.toLowerCase()] && <div className="flex justify-between"><span className="text-muted-foreground">{player1Label}:</span><span className="font-medium">{data[player1Label.toLowerCase()]}</span></div>}
+                {data[player2Label.toLowerCase()] && <div className="flex justify-between"><span className="text-muted-foreground">{player2Label}:</span><span className="font-medium">{data[player2Label.toLowerCase()]}</span></div>}
                 {data.gameNumber && <div className="flex justify-between"><span className="text-muted-foreground">Game:</span><span className="font-mono text-xs">{data.gameNumber}</span></div>}
                 {data.startedAt && <div className="flex justify-between"><span className="text-muted-foreground">Started:</span><span className="text-xs">{new Date(data.startedAt).toLocaleString()}</span></div>}
               </div>

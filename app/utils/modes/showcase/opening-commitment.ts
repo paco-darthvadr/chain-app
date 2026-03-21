@@ -1,8 +1,7 @@
 import { rpcCall } from '@/app/utils/verus-rpc';
 
 export interface OpeningCommitment {
-  white: string;
-  black: string;
+  [key: string]: string;  // e.g. { white: "zenny@", black: "lenny@" } or { red: "zenny@", black: "lenny@" }
   gameNumber: string;
   startedAt: string;
 }

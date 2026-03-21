@@ -2,14 +2,19 @@ import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { buildOpeningMessage, verifyOpeningSignature, OpeningCommitment } from '@/app/utils/modes/showcase/opening-commitment';
 import { rpcCall, getPlayerName } from '@/app/utils/verus-rpc';
+import { getGameConfig } from '@/app/games/registry';
 
-function buildCommitment(game: any): OpeningCommitment {
-  return {
-    white: getPlayerName(game.player1),
-    black: getPlayerName(game.player2),
+function buildCommitment(game: any): { commitment: OpeningCommitment; player1Key: string; player2Key: string } {
+  const config = getGameConfig(game.gameType || 'chess');
+  const p1Key = config.player1Label.toLowerCase(); // "white", "red", etc.
+  const p2Key = config.player2Label.toLowerCase(); // "black", etc.
+  const commitment: OpeningCommitment = {
+    [p1Key]: getPlayerName(game.player1),
+    [p2Key]: getPlayerName(game.player2),
     gameNumber: game.gameSession?.subIdName || game.id,
     startedAt: game.createdAt.toISOString(),
   };
+  return { commitment, player1Key: p1Key, player2Key: p2Key };
 }
 
 // GET /api/game/[gameId]/showcase-sign — get the opening message to sign
@@ -24,7 +29,7 @@ export async function GET(request: Request, { params }: { params: { gameId: stri
       return NextResponse.json({ error: 'Game mode does not support signatures' }, { status: 404 });
     }
 
-    const commitment = buildCommitment(game);
+    const { commitment } = buildCommitment(game);
     const message = buildOpeningMessage(commitment);
 
     return NextResponse.json({
@@ -71,7 +76,7 @@ export async function POST(request: Request, { params }: { params: { gameId: str
     }
 
     if (phase === 'open') {
-      const commitment = buildCommitment(game);
+      const { commitment } = buildCommitment(game);
       const isValid = await verifyOpeningSignature(playerName, signature, commitment);
       if (!isValid) {
         return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
@@ -94,7 +99,7 @@ export async function POST(request: Request, { params }: { params: { gameId: str
         phase: 'open',
         player,
         bothSigned,
-        message: buildOpeningMessage(commitment),
+        message: buildOpeningMessage(commitment as OpeningCommitment),
       });
 
     } else if (phase === 'close') {
