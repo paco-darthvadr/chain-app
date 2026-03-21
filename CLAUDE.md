@@ -1,4 +1,4 @@
-# Chess Arena — Developer Guide
+# Verus Game Arena — Developer Guide
 
 ## What This Is
 

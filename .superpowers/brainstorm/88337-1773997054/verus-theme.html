@@ -1,0 +1,144 @@
+<h2>Verus Board Theme Options</h2>
+<p class="subtitle">Official Verus Blue is <code>#3165D4</code>. Which pairing works best for the board?</p>
+
+<div class="cards">
+  <!-- Option A: Blue & White -->
+  <div class="card" data-choice="verus-bright" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 12px;">
+      <div style="display: grid; grid-template-columns: repeat(8, 1fr); width: 100%; aspect-ratio: 1; border: 2px solid #333; border-radius: 4px; overflow: hidden;">
+        <script>
+          (function() {
+            const colors = { light: '#E8EDF5', dark: '#3165D4' };
+            const parent = document.currentScript.parentElement;
+            for (let r = 0; r < 8; r++) {
+              for (let c = 0; c < 8; c++) {
+                const sq = document.createElement('div');
+                sq.style.background = (r + c) % 2 === 0 ? colors.light : colors.dark;
+                sq.style.aspectRatio = '1';
+                parent.appendChild(sq);
+              }
+            }
+          })();
+        </script>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A) Verus Bright</h3>
+      <p>Verus Blue <code>#3165D4</code> + tinted white <code>#E8EDF5</code>. Bold, on-brand.</p>
+    </div>
+  </div>
+
+  <!-- Option B: Blue & Light Grey -->
+  <div class="card" data-choice="verus-steel" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 12px;">
+      <div style="display: grid; grid-template-columns: repeat(8, 1fr); width: 100%; aspect-ratio: 1; border: 2px solid #333; border-radius: 4px; overflow: hidden;">
+        <script>
+          (function() {
+            const colors = { light: '#D6D6D6', dark: '#3165D4' };
+            const parent = document.currentScript.parentElement;
+            for (let r = 0; r < 8; r++) {
+              for (let c = 0; c < 8; c++) {
+                const sq = document.createElement('div');
+                sq.style.background = (r + c) % 2 === 0 ? colors.light : colors.dark;
+                sq.style.aspectRatio = '1';
+                parent.appendChild(sq);
+              }
+            }
+          })();
+        </script>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B) Verus Steel</h3>
+      <p>Verus Blue <code>#3165D4</code> + Verus Light Grey <code>#D6D6D6</code>. Clean, professional.</p>
+    </div>
+  </div>
+
+  <!-- Option C: Muted Blue -->
+  <div class="card" data-choice="verus-muted" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 12px;">
+      <div style="display: grid; grid-template-columns: repeat(8, 1fr); width: 100%; aspect-ratio: 1; border: 2px solid #333; border-radius: 4px; overflow: hidden;">
+        <script>
+          (function() {
+            const colors = { light: '#C8D6F0', dark: '#254BA0' };
+            const parent = document.currentScript.parentElement;
+            for (let r = 0; r < 8; r++) {
+              for (let c = 0; c < 8; c++) {
+                const sq = document.createElement('div');
+                sq.style.background = (r + c) % 2 === 0 ? colors.light : colors.dark;
+                sq.style.aspectRatio = '1';
+                parent.appendChild(sq);
+              }
+            }
+          })();
+        </script>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C) Verus Deep</h3>
+      <p>Darkened blue <code>#254BA0</code> + soft blue <code>#C8D6F0</code>. Easy on the eyes for long games.</p>
+    </div>
+  </div>
+
+  <!-- Option D: Dark Verus -->
+  <div class="card" data-choice="verus-dark" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 12px;">
+      <div style="display: grid; grid-template-columns: repeat(8, 1fr); width: 100%; aspect-ratio: 1; border: 2px solid #333; border-radius: 4px; overflow: hidden;">
+        <script>
+          (function() {
+            const colors = { light: '#959595', dark: '#1C1C1C' };
+            const parent = document.currentScript.parentElement;
+            for (let r = 0; r < 8; r++) {
+              for (let c = 0; c < 8; c++) {
+                const sq = document.createElement('div');
+                sq.style.background = (r + c) % 2 === 0 ? colors.light : colors.dark;
+                sq.style.aspectRatio = '1';
+                parent.appendChild(sq);
+              }
+            }
+          })();
+        </script>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>D) Verus Dark</h3>
+      <p>Verus Dark <code>#1C1C1C</code> + Dark Grey <code>#959595</code>. Sleek dark mode board with blue highlights.</p>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top: 2rem; padding: 1rem; background: #1a1a2e; border-radius: 8px; border: 1px solid #333;">
+  <h3 style="margin: 0 0 0.5rem 0; color: #ccc;">Verus Brand Palette Reference</h3>
+  <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+    <div style="text-align: center;">
+      <div style="width: 50px; height: 50px; background: #3165D4; border-radius: 6px; border: 1px solid #555;"></div>
+      <small style="color: #aaa;">Blue<br>#3165D4</small>
+    </div>
+    <div style="text-align: center;">
+      <div style="width: 50px; height: 50px; background: #FFFFFF; border-radius: 6px; border: 1px solid #555;"></div>
+      <small style="color: #aaa;">White<br>#FFFFFF</small>
+    </div>
+    <div style="text-align: center;">
+      <div style="width: 50px; height: 50px; background: #1C1C1C; border-radius: 6px; border: 1px solid #555;"></div>
+      <small style="color: #aaa;">Dark<br>#1C1C1C</small>
+    </div>
+    <div style="text-align: center;">
+      <div style="width: 50px; height: 50px; background: #959595; border-radius: 6px; border: 1px solid #555;"></div>
+      <small style="color: #aaa;">Dk Grey<br>#959595</small>
+    </div>
+    <div style="text-align: center;">
+      <div style="width: 50px; height: 50px; background: #D6D6D6; border-radius: 6px; border: 1px solid #555;"></div>
+      <small style="color: #aaa;">Lt Grey<br>#D6D6D6</small>
+    </div>
+    <div style="text-align: center;">
+      <div style="width: 50px; height: 50px; background: #D4313E; border-radius: 6px; border: 1px solid #555;"></div>
+      <small style="color: #aaa;">Red<br>#D4313E</small>
+    </div>
+    <div style="text-align: center;">
+      <div style="width: 50px; height: 50px; background: #4AA658; border-radius: 6px; border: 1px solid #555;"></div>
+      <small style="color: #aaa;">Green<br>#4AA658</small>
+    </div>
+  </div>
+</div>
+
+<p style="margin-top: 1rem; color: #888; font-size: 0.9rem;">Logo assets (SVG/PNG) are in <a href="https://github.com/VerusCoin/Media-Assets" style="color: #3165D4;">VerusCoin/Media-Assets</a>. We can add the Verus icon as a watermark on the board center or corner.</p>

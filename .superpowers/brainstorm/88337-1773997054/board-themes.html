@@ -1,0 +1,162 @@
+<h2>Which board color themes should we offer?</h2>
+<p class="subtitle">Click any you like — you can select multiple. The current board is "Classic" (top-left).</p>
+
+<div class="cards" data-multiselect>
+  <!-- Classic (current) -->
+  <div class="card" data-choice="classic" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 12px;">
+      <div style="display: grid; grid-template-columns: repeat(8, 1fr); width: 100%; aspect-ratio: 1; border: 2px solid #333; border-radius: 4px; overflow: hidden;">
+        <script>
+          (function() {
+            const colors = { light: '#ebecd0', dark: '#606956' };
+            const parent = document.currentScript.parentElement;
+            for (let r = 0; r < 8; r++) {
+              for (let c = 0; c < 8; c++) {
+                const sq = document.createElement('div');
+                sq.style.background = (r + c) % 2 === 0 ? colors.light : colors.dark;
+                sq.style.aspectRatio = '1';
+                parent.appendChild(sq);
+              }
+            }
+          })();
+        </script>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Classic</h3>
+      <p>Current board — olive green & cream. The default.</p>
+    </div>
+  </div>
+
+  <!-- Blue & White -->
+  <div class="card" data-choice="blue-white" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 12px;">
+      <div style="display: grid; grid-template-columns: repeat(8, 1fr); width: 100%; aspect-ratio: 1; border: 2px solid #333; border-radius: 4px; overflow: hidden;">
+        <script>
+          (function() {
+            const colors = { light: '#dee8f0', dark: '#4a7fb5' };
+            const parent = document.currentScript.parentElement;
+            for (let r = 0; r < 8; r++) {
+              for (let c = 0; c < 8; c++) {
+                const sq = document.createElement('div');
+                sq.style.background = (r + c) % 2 === 0 ? colors.light : colors.dark;
+                sq.style.aspectRatio = '1';
+                parent.appendChild(sq);
+              }
+            }
+          })();
+        </script>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Blue & White</h3>
+      <p>Cool blue tones — #4a7fb5 / #dee8f0</p>
+    </div>
+  </div>
+
+  <!-- Walnut -->
+  <div class="card" data-choice="walnut" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 12px;">
+      <div style="display: grid; grid-template-columns: repeat(8, 1fr); width: 100%; aspect-ratio: 1; border: 2px solid #333; border-radius: 4px; overflow: hidden;">
+        <script>
+          (function() {
+            const colors = { light: '#f0d9b5', dark: '#b58863' };
+            const parent = document.currentScript.parentElement;
+            for (let r = 0; r < 8; r++) {
+              for (let c = 0; c < 8; c++) {
+                const sq = document.createElement('div');
+                sq.style.background = (r + c) % 2 === 0 ? colors.light : colors.dark;
+                sq.style.aspectRatio = '1';
+                parent.appendChild(sq);
+              }
+            }
+          })();
+        </script>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Walnut</h3>
+      <p>Warm wood tones — classic chess.com style. #b58863 / #f0d9b5</p>
+    </div>
+  </div>
+
+  <!-- Emerald -->
+  <div class="card" data-choice="emerald" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 12px;">
+      <div style="display: grid; grid-template-columns: repeat(8, 1fr); width: 100%; aspect-ratio: 1; border: 2px solid #333; border-radius: 4px; overflow: hidden;">
+        <script>
+          (function() {
+            const colors = { light: '#ffffdd', dark: '#86a666' };
+            const parent = document.currentScript.parentElement;
+            for (let r = 0; r < 8; r++) {
+              for (let c = 0; c < 8; c++) {
+                const sq = document.createElement('div');
+                sq.style.background = (r + c) % 2 === 0 ? colors.light : colors.dark;
+                sq.style.aspectRatio = '1';
+                parent.appendChild(sq);
+              }
+            }
+          })();
+        </script>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Emerald</h3>
+      <p>Fresh green & pale yellow — lichess style. #86a666 / #ffffdd</p>
+    </div>
+  </div>
+
+  <!-- Midnight -->
+  <div class="card" data-choice="midnight" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 12px;">
+      <div style="display: grid; grid-template-columns: repeat(8, 1fr); width: 100%; aspect-ratio: 1; border: 2px solid #333; border-radius: 4px; overflow: hidden;">
+        <script>
+          (function() {
+            const colors = { light: '#c8c8c8', dark: '#2d2d2d' };
+            const parent = document.currentScript.parentElement;
+            for (let r = 0; r < 8; r++) {
+              for (let c = 0; c < 8; c++) {
+                const sq = document.createElement('div');
+                sq.style.background = (r + c) % 2 === 0 ? colors.light : colors.dark;
+                sq.style.aspectRatio = '1';
+                parent.appendChild(sq);
+              }
+            }
+          })();
+        </script>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Midnight</h3>
+      <p>Dark mode board — charcoal & silver. #2d2d2d / #c8c8c8</p>
+    </div>
+  </div>
+
+  <!-- Royal Purple -->
+  <div class="card" data-choice="royal" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 12px;">
+      <div style="display: grid; grid-template-columns: repeat(8, 1fr); width: 100%; aspect-ratio: 1; border: 2px solid #333; border-radius: 4px; overflow: hidden;">
+        <script>
+          (function() {
+            const colors = { light: '#e8d5f5', dark: '#7b4fa0' };
+            const parent = document.currentScript.parentElement;
+            for (let r = 0; r < 8; r++) {
+              for (let c = 0; c < 8; c++) {
+                const sq = document.createElement('div');
+                sq.style.background = (r + c) % 2 === 0 ? colors.light : colors.dark;
+                sq.style.aspectRatio = '1';
+                parent.appendChild(sq);
+              }
+            }
+          })();
+        </script>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Royal Purple</h3>
+      <p>Rich purple & lavender — tournament feel. #7b4fa0 / #e8d5f5</p>
+    </div>
+  </div>
+</div>
+
+<p style="margin-top: 1.5rem; color: #888; font-size: 0.9rem;">Select all the themes you'd want to ship. We can always add more later.</p>
