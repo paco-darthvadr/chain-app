@@ -14,6 +14,7 @@ export async function GET(request: Request, { params }: { params: { gameId: stri
                 player1: true,
                 player2: true,
                 gameSession: true,
+                _count: { select: { moves: true } },
             },
         });
         if (!game) {

@@ -183,8 +183,16 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
 
   const moveCount = (() => {
     try {
+      // Chess stores moves in boardState.moves
       const bs = game?.boardState;
-      if (bs?.moves) return bs.moves.length;
+      if (bs?.moves && Array.isArray(bs.moves)) return bs.moves.length;
+      // For other games, count from the DB moves relation or _count
+      if (game?._count?.moves) return game._count.moves;
+      if (game?.moves && Array.isArray(game.moves)) return game.moves.length;
+      // Fallback: count captured pieces for checkers-like games
+      if (bs?.capturedRed !== undefined || bs?.capturedBlack !== undefined) {
+        return (bs.capturedRed || 0) + (bs.capturedBlack || 0) + ' captures';
+      }
     } catch {}
     return '?';
   })();

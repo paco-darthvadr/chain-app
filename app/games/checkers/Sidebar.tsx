@@ -41,8 +41,8 @@ export default function CheckersSidebar({ boardState, moves, currentPlayer }: Si
       <div className="space-y-1">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Turn</h3>
         <div className="flex items-center gap-2">
-          <div className={`w-3 h-3 rounded-full ${currentPlayer === 1 ? 'bg-red-600' : 'bg-gray-800 dark:bg-gray-700'}`} />
-          <span className="text-sm font-medium">{currentPlayer === 1 ? 'Red' : 'Black'} to move</span>
+          <div className={`w-3 h-3 rounded-full ${state.currentTeam === Team.RED ? 'bg-red-600' : 'bg-gray-800 dark:bg-gray-700'}`} />
+          <span className="text-sm font-medium">{state.currentTeam === Team.RED ? 'Red' : 'Black'} to move</span>
         </div>
       </div>
 
