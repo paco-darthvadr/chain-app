@@ -34,7 +34,8 @@ const BATCH_SIZE = Math.max(1, Math.min(5,
  */
 function isDaemonDown(error: any): boolean {
   const code = error?.code;
-  return code === 'ECONNREFUSED' || code === 'ECONNRESET' || code === 'ETIMEDOUT';
+  return code === 'ECONNREFUSED' || code === 'ECONNRESET' || code === 'ETIMEDOUT'
+      || code === 'EHOSTUNREACH' || code === 'ENETUNREACH';
 }
 
 /**
