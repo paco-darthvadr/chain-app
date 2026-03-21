@@ -100,7 +100,7 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
       });
       const data = await res.json();
 
-      if (res.ok && data.success) {
+      if (res.ok && (data.success || data.message?.includes('already stored'))) {
         setBlockchainStatus('stored');
         setBlockchainMessage(`Stored on blockchain! SubID: ${data.subIdName || ''}`);
         if (data.transactionId) {
@@ -111,11 +111,13 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
         setBlockchainMessage(data.error || 'SubID not confirmed yet. Please wait...');
       } else {
         setBlockchainStatus('failed');
-        setBlockchainMessage(data.error || 'Storage failed');
+        setBlockchainMessage(data.error || data.message || `Storage failed (HTTP ${res.status})`);
+        console.error('[GameOver] Store failed:', { status: res.status, data });
       }
     } catch (error: any) {
       setBlockchainStatus('failed');
-      setBlockchainMessage(error.message || 'Network error');
+      setBlockchainMessage(`Network error: ${error.message || 'Unknown'}`);
+      console.error('[GameOver] Store error:', error);
     }
   };
 
