@@ -70,6 +70,7 @@ io.on('connection', (socket) => {
     socket.userId = userId;
     console.log(`User ${userId} registered with socket ${socket.id} (${userSockets[userId].size} connections)`);
     console.log('Current registered users:', Object.keys(userSockets));
+    notifyStatusChange(userId);
   });
 
   socket.on('joinRoom', ({ roomId, userId }) => {

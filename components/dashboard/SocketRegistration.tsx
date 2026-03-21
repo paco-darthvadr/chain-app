@@ -45,7 +45,7 @@ export default function SocketRegistration() {
                 boardTheme: boardTheme || 'classic',
                 logoMode: logoMode || 'off',
                 gameType: gameType || 'chess',
-                challengerStatus: challengerStatus || 'available',
+                challengerStatus: challengerStatus ?? 'available',
                 timestamp: Date.now(),
                 state: 'incoming',
             });

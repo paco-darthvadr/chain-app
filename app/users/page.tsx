@@ -54,7 +54,8 @@ function UsersPage() {
                 if (currentUserObj) {
                     localStorage.setItem('currentUserName', currentUserObj.displayName || currentUserObj.verusId);
                 }
-                if (socket) socket.emit('register-user', newCurrentId);
+                const globalSocket = getGlobalSocket();
+                if (globalSocket) globalSocket.emit('register-user', newCurrentId);
                 const games = await getGamesForUser(newCurrentId);
                 setUserGames(games);
             } else {
