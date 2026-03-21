@@ -24,6 +24,15 @@ export default function SocketRegistration() {
 
     useEffect(() => {
         (window as any).__gameRedirecting = false;
+        // Don't register on the login page
+        if (pathname === '/login') {
+            const existing = getGlobalSocket();
+            if (existing) {
+                existing.disconnect();
+                setGlobalSocket(null);
+            }
+            return;
+        }
         const userId = localStorage.getItem('currentUser');
         if (!userId) {
             // User logged out — disconnect any existing socket

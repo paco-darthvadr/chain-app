@@ -8,6 +8,12 @@ const Login = () => {
   const [loginMode, setLoginMode] = useState<'cli' | 'qr'>('cli');
   const router = useRouter();
 
+  // Clear stale session data — if you're on the login page, you're not authenticated
+  useEffect(() => {
+    localStorage.removeItem('currentUser');
+    localStorage.removeItem('currentUserName');
+  }, []);
+
   // --- QR Mode State ---
   const [qrCode, setQrCode] = useState<{ shortUrl: string; deeplink: string; pngname: string } | null>(null);
   const [qrError, setQrError] = useState<string | null>(null);
