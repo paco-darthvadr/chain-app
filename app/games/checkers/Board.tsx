@@ -320,7 +320,7 @@ export default function CheckersBoard({
               left: GRID_SIZE * 3,
               width: GRID_SIZE * 2,
               height: GRID_SIZE * 2,
-              opacity: logoMode === 'faded' ? 0.2 : 0.55,
+              opacity: logoMode === 'faded' ? 0.2 : 0.65,
               pointerEvents: 'none',
               filter: 'drop-shadow(0 0 2px rgba(0,0,0,0.3))',
               zIndex: 1,
