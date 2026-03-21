@@ -41,7 +41,7 @@ export const chessConfig: GameConfig = {
   signingWif: process.env.CHESSGAME_SIGNING_WIF || '',
   vdxfKeys,
   chainEnabled: true,
-  subIdPrefix: 'chess-game',
+  subIdPrefix: 'game',
 
   BoardComponent: lazy(() => import('./Board')),
   SidebarComponent: undefined,

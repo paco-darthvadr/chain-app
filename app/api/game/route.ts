@@ -117,7 +117,7 @@ export async function POST(req: Request) {
         if (config.chainEnabled) {
             if (gameMode === 'normal') {
                 // Normal mode: allocate SubID, fire-and-forget commitment
-                const { subIdName } = await nextGameNumber(validGameType, config.subIdPrefix + '-');
+                const { subIdName } = await nextGameNumber(validGameType, config.subIdPrefix);
 
                 await prisma.gameSession.create({
                     data: { gameId: newGame.id, subIdName },
@@ -147,7 +147,7 @@ export async function POST(req: Request) {
                     ensurePoolSize(5, validGameType, config.parentIdentityAddress, config.parentIdentityName).catch(err => console.error('[SubID Pool] Replenish failed:', err.message));
                 } else {
                     console.log('[SubID Pool] No ready SubIDs, falling back to on-the-fly registration');
-                    const { subIdName } = await nextGameNumber(validGameType, config.subIdPrefix + '-');
+                    const { subIdName } = await nextGameNumber(validGameType, config.subIdPrefix);
 
                     await prisma.gameSession.create({
                         data: { gameId: newGame.id, subIdName },

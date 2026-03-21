@@ -48,7 +48,7 @@ export const checkersConfig: GameConfig = {
   signingWif: process.env.CHECKERSGAME_SIGNING_WIF || '',
   vdxfKeys,
   chainEnabled: true,
-  subIdPrefix: 'checkers-game',
+  subIdPrefix: 'game',
 
   BoardComponent: lazy(() => import('./Board')),
   SidebarComponent: lazy(() => import('./Sidebar')),
