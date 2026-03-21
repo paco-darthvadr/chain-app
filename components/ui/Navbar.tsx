@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { LogOut } from 'lucide-react';
 import { ThemeSwitcher } from "./ThemeSwitcher";
 import ChallengeInbox from '@/components/dashboard/ChallengeInbox';
+import { getGlobalSocket } from '@/components/dashboard/SocketRegistration';
 
 const Navbar = () => {
     const pathname = usePathname();
@@ -22,7 +23,13 @@ const Navbar = () => {
             <div className="flex items-center space-x-2">
                 <ChallengeInbox />
                 <ThemeSwitcher />
-                <Button variant="ghost" size="icon" onClick={() => router.push('/login')}>
+                <Button variant="ghost" size="icon" onClick={() => {
+                    const sock = getGlobalSocket();
+                    if (sock) sock.disconnect();
+                    localStorage.removeItem('currentUser');
+                    localStorage.removeItem('currentUserName');
+                    router.push('/login');
+                }}>
                     <LogOut className="h-5 w-5" />
                 </Button>
             </div>
