@@ -273,10 +273,17 @@ function GenericGameClient({ game }: { game: any }) {
             {showcaseSigningPhase === 'open' && (
                 <ShowcaseSigningPrompt
                     gameId={game.id}
-                    message={showcaseMessage}
-                    currentPlayer={currentPlayerColor}
+                    player={currentPlayerColor}
+                    playerVerusId={(() => {
+                        const p = currentPlayer === 1 ? game.player1 : game.player2;
+                        return p?.displayName ? `${p.displayName}@` : p?.verusId || '';
+                    })()}
+                    phase="open"
+                    messageToSign={showcaseMessage}
                     onSigned={showcaseOnSigned}
                     onBothSigned={showcaseOnBothSigned}
+                    player1Label={config.player1Label}
+                    player2Label={config.player2Label}
                 />
             )}
             {gameResult && (

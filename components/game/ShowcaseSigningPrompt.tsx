@@ -11,10 +11,13 @@ interface ShowcaseSigningPromptProps {
   onSigned: () => void;
   onBothSigned?: () => void;
   onLeave?: () => void;
+  player1Label?: string;
+  player2Label?: string;
 }
 
 export default function ShowcaseSigningPrompt({
   gameId, player, playerVerusId, phase, messageToSign, onSigned, onBothSigned, onLeave,
+  player1Label = 'White', player2Label = 'Black',
 }: ShowcaseSigningPromptProps) {
   const [signature, setSignature] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -114,8 +117,8 @@ export default function ShowcaseSigningPrompt({
             return (
               <div className="text-left text-sm space-y-1 bg-muted p-3 rounded-md">
                 <p className="font-medium text-muted-foreground mb-2">You are signing:</p>
-                {data.white && <div className="flex justify-between"><span className="text-muted-foreground">White:</span><span className="font-medium">{data.white}</span></div>}
-                {data.black && <div className="flex justify-between"><span className="text-muted-foreground">Black:</span><span className="font-medium">{data.black}</span></div>}
+                {data.white && <div className="flex justify-between"><span className="text-muted-foreground">{player1Label}:</span><span className="font-medium">{data.white}</span></div>}
+                {data.black && <div className="flex justify-between"><span className="text-muted-foreground">{player2Label}:</span><span className="font-medium">{data.black}</span></div>}
                 {data.gameNumber && <div className="flex justify-between"><span className="text-muted-foreground">Game:</span><span className="font-mono text-xs">{data.gameNumber}</span></div>}
                 {data.startedAt && <div className="flex justify-between"><span className="text-muted-foreground">Started:</span><span className="text-xs">{new Date(data.startedAt).toLocaleString()}</span></div>}
               </div>
