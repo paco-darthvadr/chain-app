@@ -23,6 +23,7 @@ export default function SocketRegistration() {
     const pathname = usePathname();
 
     useEffect(() => {
+        (window as any).__gameRedirecting = false;
         const userId = localStorage.getItem('currentUser');
         if (!userId) return;
 
@@ -67,6 +68,9 @@ export default function SocketRegistration() {
         });
 
         socket.on('game-started', ({ gameId }) => {
+            // Guard against duplicate redirects (multiple sockets can fire this)
+            if ((window as any).__gameRedirecting) return;
+            (window as any).__gameRedirecting = true;
             window.dispatchEvent(new CustomEvent('socket:game-started', {
                 detail: { gameId }
             }));
