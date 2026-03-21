@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import { io, Socket } from 'socket.io-client';
 import { useChallenges } from './ChallengeContext';
 
@@ -19,6 +20,7 @@ function setGlobalSocket(socket: Socket | null) {
 
 export default function SocketRegistration() {
     const { addChallenge, removeChallenge, updateChallengerStatus, markOpponentReady } = useChallenges();
+    const pathname = usePathname();
 
     useEffect(() => {
         const userId = localStorage.getItem('currentUser');
@@ -106,7 +108,7 @@ export default function SocketRegistration() {
             setGlobalSocket(null);
             window.removeEventListener('challenge-sent', handleChallengeSent);
         };
-    }, [addChallenge, removeChallenge, updateChallengerStatus, markOpponentReady]);
+    }, [pathname, addChallenge, removeChallenge, updateChallengerStatus, markOpponentReady]);
 
     return null;
 }
