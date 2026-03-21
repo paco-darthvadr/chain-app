@@ -81,17 +81,15 @@ export const showcaseHandler: ModeHandler = {
     // Fire chain update in the background — don't block the move/socket relay
     (async () => {
       try {
-        if (!session.subIdAddress) {
-          // Fallback: pool was empty, create SubID on-the-fly
-          console.log(`[Showcase] No pool SubID for ${subIdName}, creating on-the-fly...`);
-          const subIdResult = await createGameSubId(subIdName, config.parentIdentityAddress, config.parentIdentityName);
-          await prisma.gameSession.update({
-            where: { gameId: game.id },
-            data: { subIdAddress: subIdResult.address },
-          });
-        } else {
-          console.log(`[Showcase] Using pool SubID ${subIdName} (${session.subIdAddress})`);
+        // Re-read session to get latest subIdAddress (may have been set by background registration)
+        const freshSession = await prisma.gameSession.findUnique({ where: { gameId: game.id } });
+        if (!freshSession?.subIdAddress) {
+          // SubID not ready yet — skip this move's chain update
+          // The background registration from game creation will complete it
+          console.log(`[Showcase] SubID ${subIdName} not ready yet, skipping chain update for move ${moveNum}`);
+          return;
         }
+        console.log(`[Showcase] Using SubID ${subIdName} (${freshSession.subIdAddress})`);
         await updateGameOnChain(subIdName, liveState, config.vdxfKeys, config.parentIdentityName);
       } catch (error: any) {
         console.error(`[Showcase] Live chain update failed for move ${moveNum}:`, error.message);
