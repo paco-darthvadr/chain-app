@@ -3,24 +3,83 @@ import { prisma } from '@/lib/prisma';
 import { io } from "socket.io-client";
 import { popReadySubId, ensurePoolSize } from '@/app/utils/subid-pool';
 import { nextGameNumber } from '@/app/utils/game-counter';
-import { rpcCall } from '@/app/utils/verus-rpc';
+import { rpcCall, waitForConfirmation, buildSubIdFullName } from '@/app/utils/verus-rpc';
 import { isValidThemeId, isValidLogoMode } from '@/app/utils/board-themes';
 import { getGameConfig, isValidGameType } from '@/app/games/registry';
 
 /**
- * Fire-and-forget: submit a registernamecommitment so the SubID
- * starts mining early. Does not block the response.
+ * Background SubID registration: commit → wait for confirmation → register identity → update session.
+ * Runs async in the background so the SubID is ready by the time the game ends.
+ * Does NOT block the API response.
  */
-function startEarlyCommitment(subIdName: string, parentIdentityAddress?: string) {
+function registerSubIdInBackground(gameId: string, subIdName: string, parentIdentityAddress?: string, parentIdentityName?: string) {
     const parentAddress = parentIdentityAddress || process.env.CHESSGAME_IDENTITY_ADDRESS;
+    const fullName = buildSubIdFullName(subIdName, parentIdentityName);
+
     (async () => {
         try {
-            const result = await rpcCall('registernamecommitment', [
+            // Step 1: Check if SubID already exists
+            try {
+                const existing = await rpcCall('getidentity', [fullName]);
+                if (existing?.identity?.identityaddress) {
+                    console.log(`[SubID] ${fullName} already exists at ${existing.identity.identityaddress}`);
+                    await prisma.gameSession.update({
+                        where: { gameId },
+                        data: { subIdAddress: existing.identity.identityaddress },
+                    });
+                    return;
+                }
+            } catch { /* not found — proceed */ }
+
+            // Step 2: registernamecommitment
+            const commitment = await rpcCall('registernamecommitment', [
                 subIdName, parentAddress, '', parentAddress,
             ]);
-            console.log(`[SubID] Commitment for ${subIdName} submitted:`, result.txid);
+            console.log(`[SubID] Commitment for ${subIdName} submitted:`, commitment.txid);
+
+            // Step 3: Wait for commitment confirmation
+            const confirmed = await waitForConfirmation(commitment.txid, 300000);
+            if (!confirmed) {
+                console.error(`[SubID] Commitment for ${subIdName} not confirmed after 5 minutes`);
+                return;
+            }
+            console.log(`[SubID] Commitment for ${subIdName} confirmed`);
+
+            // Step 4: registeridentity
+            const parentIdentity = await rpcCall('getidentity', [parentAddress]);
+            const parentPrimaryAddress = parentIdentity.identity.primaryaddresses[0];
+
+            await rpcCall('registeridentity', [{
+                txid: commitment.txid,
+                namereservation: commitment.namereservation,
+                identity: {
+                    name: subIdName,
+                    parent: parentAddress,
+                    primaryaddresses: [parentPrimaryAddress],
+                    minimumsignatures: 1,
+                },
+            }]);
+            console.log(`[SubID] registeridentity sent for ${subIdName}`);
+
+            // Step 5: Poll for identity to appear on chain
+            for (let attempt = 0; attempt < 18; attempt++) {
+                try {
+                    const registered = await rpcCall('getidentity', [fullName]);
+                    if (registered?.identity?.identityaddress) {
+                        await prisma.gameSession.update({
+                            where: { gameId },
+                            data: { subIdAddress: registered.identity.identityaddress },
+                        });
+                        console.log(`[SubID] ${subIdName} registered at ${registered.identity.identityaddress}`);
+                        return;
+                    }
+                } catch { /* not found yet */ }
+                await new Promise(r => setTimeout(r, 10000));
+            }
+
+            console.error(`[SubID] ${subIdName} registered but not visible after 3 minutes`);
         } catch (e: any) {
-            console.log(`[SubID] Early commitment for ${subIdName} failed:`, e.message);
+            console.error(`[SubID] Background registration failed for ${subIdName}:`, e.message);
         }
     })();
 }
@@ -64,7 +123,7 @@ export async function POST(req: Request) {
                     data: { gameId: newGame.id, subIdName },
                 });
 
-                startEarlyCommitment(subIdName, config.parentIdentityAddress);
+                registerSubIdInBackground(newGame.id, subIdName, config.parentIdentityAddress, config.parentIdentityName);
 
             } else if (gameMode === 'showcase') {
                 // Showcase mode: try pool first, fall back to on-the-fly
@@ -94,7 +153,7 @@ export async function POST(req: Request) {
                         data: { gameId: newGame.id, subIdName },
                     });
 
-                    startEarlyCommitment(subIdName, config.parentIdentityAddress);
+                    registerSubIdInBackground(newGame.id, subIdName, config.parentIdentityAddress, config.parentIdentityName);
                 }
             }
         }
