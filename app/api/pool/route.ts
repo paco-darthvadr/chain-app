@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getPoolStatus, ensurePoolSize, isPoolEnabled } from '@/app/utils/subid-pool';
+import { getAllGameTypes } from '@/app/games/registry';
 
 // GET /api/pool — returns pool status
 export async function GET() {
@@ -13,10 +14,9 @@ export async function GET() {
   }
 }
 
-// POST /api/pool — triggers replenishment (requires internal API secret)
+// POST /api/pool — triggers replenishment for ALL chain-enabled game types
 export async function POST(req: Request) {
   try {
-    // Auth: require internal secret to prevent unauthorized SubID registration
     const secret = process.env.INTERNAL_API_SECRET;
     if (secret) {
       const authHeader = req.headers.get('x-api-secret');
@@ -28,7 +28,14 @@ export async function POST(req: Request) {
     if (!isPoolEnabled()) {
       return NextResponse.json({ message: 'Pool is disabled' }, { status: 200 });
     }
-    await ensurePoolSize();
+
+    // Replenish pool for every chain-enabled game type
+    const gameTypes = getAllGameTypes().filter(g => g.chainEnabled);
+    for (const config of gameTypes) {
+      console.log(`[Pool API] Replenishing pool for ${config.type}...`);
+      await ensurePoolSize(5, config.type, config.parentIdentityAddress, config.parentIdentityName);
+    }
+
     const status = await getPoolStatus();
     return NextResponse.json({ message: 'Replenishment triggered', ...status });
   } catch (error: any) {
