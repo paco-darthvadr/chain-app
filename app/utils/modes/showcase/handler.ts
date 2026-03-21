@@ -2,6 +2,7 @@ import { ModeHandler, MoveData, SignedMovePackage, GameEndResult, StorageResult 
 import { hashMovePackage, computeAnchorHash, verifyChain, computeGameHash, MovePackageData } from '../normal/hash-chain';
 import { getMoveSigner } from '../normal/move-signer';
 import { updateGameOnChain, LiveGameState } from './live-storage';
+import { enqueueChainUpdate, flushQueue } from './chain-queue';
 import { createGameSubId } from '../normal/subid-storage';
 import { getPlayerName } from '@/app/utils/verus-rpc';
 import { getGameConfig } from '@/app/games/registry';
@@ -78,21 +79,23 @@ export const showcaseHandler: ModeHandler = {
       blackOpenSig: session.player2OpeningSig || '',
     };
 
-    // Fire chain update in the background — don't block the move/socket relay
+    // Enqueue chain update — don't block the move/socket relay
     (async () => {
       try {
-        // Re-read session to get latest subIdAddress (may have been set by background registration)
         const freshSession = await prisma.gameSession.findUnique({ where: { gameId: game.id } });
         if (!freshSession?.subIdAddress) {
-          // SubID not ready yet — skip this move's chain update
-          // The background registration from game creation will complete it
           console.log(`[Showcase] SubID ${subIdName} not ready yet, skipping chain update for move ${moveNum}`);
           return;
         }
-        console.log(`[Showcase] Using SubID ${subIdName} (${freshSession.subIdAddress})`);
-        await updateGameOnChain(subIdName, liveState, config.vdxfKeys, config.parentIdentityName);
+        enqueueChainUpdate(game.id, {
+          subIdName,
+          liveState,
+          keys: config.vdxfKeys,
+          parentIdentityName: config.parentIdentityName,
+          moveNum,
+        });
       } catch (error: any) {
-        console.error(`[Showcase] Live chain update failed for move ${moveNum}:`, error.message);
+        console.error(`[Showcase] Failed to enqueue chain update for move ${moveNum}:`, error.message);
       }
     })();
 
@@ -190,6 +193,9 @@ export const showcaseHandler: ModeHandler = {
       blackSig: session.player2FinalSig || '',
       moveSigs,
     };
+
+    // Drain any pending queued updates before the final store
+    await flushQueue(game.id);
 
     try {
       const { txid } = await updateGameOnChain(subIdName, finalState, config.vdxfKeys, config.parentIdentityName);
