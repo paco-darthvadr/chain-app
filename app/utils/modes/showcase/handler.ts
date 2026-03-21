@@ -33,7 +33,7 @@ export const showcaseHandler: ModeHandler = {
         orderBy: { createdAt: 'desc' },
       });
       if (prevMove?.movePackage) {
-        prevHash = hashMovePackage(prevMove.movePackage as MovePackageData);
+        prevHash = hashMovePackage(prevMove.movePackage as unknown as MovePackageData);
       } else {
         const p1 = game.player1?.verusId || game.player1Id;
         const p2 = game.player2?.verusId || game.player2Id;
@@ -105,7 +105,7 @@ export const showcaseHandler: ModeHandler = {
 
     const packages: MovePackageData[] = fullGame.moves
       .filter(m => m.movePackage)
-      .map(m => m.movePackage as MovePackageData);
+      .map(m => m.movePackage as unknown as MovePackageData);
 
     const verification = verifyChain(
       subIdName,

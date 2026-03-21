@@ -48,6 +48,9 @@ export interface SidebarProps {
   boardState: BoardState;
   moves: string[];
   currentPlayer: 1 | 2;
+  chainSentMoves?: number;
+  chainConfirmedMoves?: number;
+  mode?: string;
 }
 
 export interface GameConfig {

@@ -38,11 +38,11 @@ export async function GET() {
 
     // Clean up old challenges (> 5 min)
     const now = Date.now();
-    for (const [id, data] of pendingChallenges) {
+    pendingChallenges.forEach((data, id) => {
         if (now - data.createdAt > 5 * 60 * 1000) {
             pendingChallenges.delete(id);
         }
-    }
+    });
 
     return NextResponse.json({ challengeId, challenge });
 }

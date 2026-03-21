@@ -43,7 +43,7 @@ export const chessConfig: GameConfig = {
   chainEnabled: true,
   subIdPrefix: 'game',
 
-  BoardComponent: lazy(() => import('./Board')),
+  BoardComponent: lazy(() => import('./Board')) as any,
   SidebarComponent: undefined,
 
   createInitialState: () => ({

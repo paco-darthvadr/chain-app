@@ -14,14 +14,15 @@ export const getLoginQr = async (userId: string) => {
             return { error: "You have already verified." };
         }
     
-        const deeplinkurl = await getverified(userId);
+        const result = await getverified();
 
-        if (!deeplinkurl) {
+        if (!result?.deeplink) {
             return { error: "Could not generate deeplink." };
         }
-    
+
+        const deeplinkurl = result.deeplink;
         const tinyurl = await shortenUrl(deeplinkurl);
-    
+
         const qr_png = image(deeplinkurl, { type: 'png' });
         const pngname = `${userId}_qr_code.png`;
     

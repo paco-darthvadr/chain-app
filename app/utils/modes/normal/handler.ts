@@ -40,7 +40,7 @@ export const normalHandler: ModeHandler = {
         orderBy: { createdAt: 'desc' },
       });
       if (prevMove?.movePackage) {
-        prevHash = hashMovePackage(prevMove.movePackage as MovePackageData);
+        prevHash = hashMovePackage(prevMove.movePackage as unknown as MovePackageData);
       } else {
         // Fallback: recompute from beginning
         const allMoves = await prisma.move.findMany({
@@ -53,7 +53,7 @@ export const normalHandler: ModeHandler = {
           prevHash = computeAnchorHash(subIdName, p1, p2);
         } else {
           const lastMove = allMoves[allMoves.length - 1];
-          prevHash = hashMovePackage(lastMove.movePackage as MovePackageData);
+          prevHash = hashMovePackage(lastMove.movePackage as unknown as MovePackageData);
         }
       }
     }
@@ -95,7 +95,7 @@ export const normalHandler: ModeHandler = {
     // Rebuild move packages from DB
     const packages: MovePackageData[] = fullGame.moves
       .filter(m => m.movePackage)
-      .map(m => m.movePackage as MovePackageData);
+      .map(m => m.movePackage as unknown as MovePackageData);
 
     // Verify the entire chain
     const verification = verifyChain(
