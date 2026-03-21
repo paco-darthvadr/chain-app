@@ -75,6 +75,7 @@ function ChallengeItem({ challenge, currentUserId }: { challenge: Challenge; cur
       challengeeId: challenge.challengeeId,
     });
     removeChallenge(challenge.challengerId);
+    window.dispatchEvent(new CustomEvent('socket:challenge-cancelled'));
   };
 
   const handleStartGame = () => {

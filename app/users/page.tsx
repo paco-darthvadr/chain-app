@@ -83,6 +83,9 @@ function UsersPage() {
             alert(detail?.message || 'Challenge failed');
             setChallengeSent(null);
         };
+        const onChallengeCancelled = () => {
+            setChallengeSent(null);
+        };
         const onRefreshGames = () => {
             const saved = localStorage.getItem('currentUser');
             if (saved) fetchUsersAndGames(saved);
@@ -93,11 +96,13 @@ function UsersPage() {
         };
 
         window.addEventListener('socket:challenge-failed', onChallengeFailed);
+        window.addEventListener('socket:challenge-cancelled', onChallengeCancelled);
         window.addEventListener('socket:refresh-game-list', onRefreshGames);
         window.addEventListener('socket:refresh-user-list', onRefreshUsers);
 
         return () => {
             window.removeEventListener('socket:challenge-failed', onChallengeFailed);
+            window.removeEventListener('socket:challenge-cancelled', onChallengeCancelled);
             window.removeEventListener('socket:refresh-game-list', onRefreshGames);
             window.removeEventListener('socket:refresh-user-list', onRefreshUsers);
         };
