@@ -8,8 +8,8 @@ import SocketRegistration from "@/components/dashboard/SocketRegistration";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
-  title: "Chain App",
-  description: "Chain App",
+  title: "Verus Game Arena",
+  description: "Blockchain-verified board games on Verus",
 };
 
 export default function RootLayout({

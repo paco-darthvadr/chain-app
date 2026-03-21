@@ -36,7 +36,7 @@ export default function LandingPage() {
     {
       icon: Zap,
       title: "Real-time Multiplayer",
-      description: "Play chess with instant move synchronization and live updates"
+      description: "Play with instant move synchronization and live updates"
     },
     {
       icon: Shield,
@@ -80,7 +80,7 @@ export default function LandingPage() {
     },
     {
       step: "3",
-      title: "Play Real-time Chess",
+      title: "Play Real-time Games",
       description: "Enjoy instant move synchronization and live game updates"
     },
     {
@@ -97,7 +97,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto flex items-center justify-between px-8">
           <div className="flex items-center space-x-2">
             <Crown className="h-8 w-8 text-blue-300" />
-            <span className="text-2xl font-extrabold text-white three-d">Verus Chess Arena</span>
+            <span className="text-2xl font-extrabold text-white three-d">Verus Game Arena</span>
           </div>
           <div className="flex space-x-4">
             {/* <Button variant="ghost" className="text-white hover:text-blue-300">
@@ -123,14 +123,14 @@ export default function LandingPage() {
       <section className="text-center py-20 px-6 w-full">
         <div className="max-w-4xl mx-auto">
           <h1 className="text-6xl md:text-7xl font-bold text-white mb-6 leading-tight">
-            Decentralized Chess on{' '}
+            Decentralized Games on{' '}
             <span className="bg-gradient-to-r from-blue-400 to-blue-200 bg-clip-text text-transparent">
               Verus Blockchain
             </span>
           </h1>
           <p className="text-xl md:text-2xl text-blue-100 mb-8 max-w-3xl mx-auto">
-            Play chess with real-time multiplayer, tournament competition, and blockchain-verified games. 
-            Experience the future of decentralized gaming.
+            Play chess, checkers, and more with real-time multiplayer and blockchain-verified games.
+            Every move hash-chained, every game stored permanently on-chain.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
@@ -158,10 +158,10 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
-              Why Choose Verus Chess?
+              Why Verus Game Arena?
             </h2>
             <p className="text-xl text-blue-100 max-w-3xl mx-auto">
-              Experience the perfect blend of traditional chess and modern blockchain technology
+              Classic board games meet modern blockchain technology
             </p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -216,7 +216,7 @@ export default function LandingPage() {
             Ready to Play?
           </h2>
           <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
-            Join players worldwide and experience the future of decentralized chess gaming
+            Join players worldwide and experience the future of decentralized gaming
           </p>
         </div>
       </section>
@@ -228,10 +228,10 @@ export default function LandingPage() {
             <div>
               <div className="flex items-center space-x-2 mb-4">
                 <Crown className="h-6 w-6 text-blue-300" />
-                <span className="text-xl font-extrabold text-white three-d">Verus Chess Arena</span>
+                <span className="text-xl font-extrabold text-white three-d">Verus Game Arena</span>
               </div>
               <p className="text-blue-100">
-                Decentralized chess gaming on the Verus blockchain
+                Decentralized gaming on the Verus blockchain
               </p>
             </div>
             <div>

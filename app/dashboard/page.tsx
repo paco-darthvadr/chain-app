@@ -92,7 +92,7 @@ export default function Home() {
         <div className="flex-col md:flex">
           <div className="flex-1 space-y-4 p-8 pt-6 dashboard-content">
             <div className="flex justify-center items-center space-y-2">
-              <h1 className="text-6xl font-extrabold tracking-tight text-center three-d-title">Verus Chess Arena</h1>
+              <h1 className="text-6xl font-extrabold tracking-tight text-center three-d-title">Verus Game Arena</h1>
             </div>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <InfoCard 
