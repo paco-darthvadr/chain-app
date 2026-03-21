@@ -38,9 +38,9 @@ function registerSubIdInBackground(gameId: string, subIdName: string, parentIden
             console.log(`[SubID] Commitment for ${subIdName} submitted:`, commitment.txid);
 
             // Step 3: Wait for commitment confirmation
-            const confirmed = await waitForConfirmation(commitment.txid, 300000);
+            const confirmed = await waitForConfirmation(commitment.txid, 900000);
             if (!confirmed) {
-                console.error(`[SubID] Commitment for ${subIdName} not confirmed after 5 minutes`);
+                console.error(`[SubID] Commitment for ${subIdName} not confirmed after 15 minutes`);
                 return;
             }
             console.log(`[SubID] Commitment for ${subIdName} confirmed`);
@@ -62,7 +62,7 @@ function registerSubIdInBackground(gameId: string, subIdName: string, parentIden
             console.log(`[SubID] registeridentity sent for ${subIdName}`);
 
             // Step 5: Poll for identity to appear on chain
-            for (let attempt = 0; attempt < 18; attempt++) {
+            for (let attempt = 0; attempt < 90; attempt++) {
                 try {
                     const registered = await rpcCall('getidentity', [fullName]);
                     if (registered?.identity?.identityaddress) {
@@ -77,7 +77,7 @@ function registerSubIdInBackground(gameId: string, subIdName: string, parentIden
                 await new Promise(r => setTimeout(r, 10000));
             }
 
-            console.error(`[SubID] ${subIdName} registered but not visible after 3 minutes`);
+            console.error(`[SubID] ${subIdName} registered but not visible after 15 minutes`);
         } catch (e: any) {
             console.error(`[SubID] Background registration failed for ${subIdName}:`, e.message);
         }
