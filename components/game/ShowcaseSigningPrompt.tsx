@@ -22,10 +22,11 @@ export default function ShowcaseSigningPrompt({
   const [signature, setSignature] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<'cli' | 'gui' | false>(false);
   const [waitingForOpponent, setWaitingForOpponent] = useState(false);
 
-  const signCommand = `verus -chain=VRSCTEST signmessage "${playerVerusId}" '${messageToSign}'`;
+  const cliCommand = `./verus -chain=VRSCTEST signmessage "${playerVerusId}" '${messageToSign}'`;
+  const guiCommand = `run signmessage "${playerVerusId}" "${messageToSign}"`;
 
   // Check if we already signed on mount (handles page refresh)
   React.useEffect(() => {
@@ -46,9 +47,9 @@ export default function ShowcaseSigningPrompt({
     })();
   }, [phase, gameId, player]);
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(signCommand);
-    setCopied(true);
+  const handleCopy = (type: 'cli' | 'gui') => {
+    navigator.clipboard.writeText(type === 'cli' ? cliCommand : guiCommand);
+    setCopied(type);
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -139,20 +140,25 @@ export default function ShowcaseSigningPrompt({
         <div className="space-y-2">
           <label className="text-sm font-medium">Sign command:</label>
           <div className="relative">
-            <div className="bg-muted p-3 pr-12 rounded-md font-mono text-xs break-all">
-              {signCommand}
+            <div className="bg-muted p-3 pr-24 rounded-md font-mono text-xs break-all">
+              signmessage &quot;{playerVerusId}&quot; &apos;{messageToSign}&apos;
             </div>
-            <button
-              onClick={handleCopy}
-              className="absolute top-2 right-2 p-1.5 rounded bg-muted-foreground/10 hover:bg-muted-foreground/20 transition-colors"
-              title="Copy command"
-            >
-              {copied ? (
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-              ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-              )}
-            </button>
+            <div className="absolute top-1.5 right-1.5 flex flex-col gap-1">
+              <button
+                onClick={() => handleCopy('cli')}
+                className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${copied === 'cli' ? 'bg-green-600 text-white' : 'bg-muted-foreground/10 hover:bg-muted-foreground/20 text-muted-foreground'}`}
+                title="Copy for CLI"
+              >
+                {copied === 'cli' ? 'Copied!' : 'CLI'}
+              </button>
+              <button
+                onClick={() => handleCopy('gui')}
+                className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${copied === 'gui' ? 'bg-green-600 text-white' : 'bg-muted-foreground/10 hover:bg-muted-foreground/20 text-muted-foreground'}`}
+                title="Copy for GUI"
+              >
+                {copied === 'gui' ? 'Copied!' : 'GUI'}
+              </button>
+            </div>
           </div>
         </div>
 

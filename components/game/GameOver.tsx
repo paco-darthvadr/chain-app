@@ -23,7 +23,7 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
   const [showcaseClosingSubmitting, setShowcaseClosingSubmitting] = useState(false);
   const [showcaseClosingDone, setShowcaseClosingDone] = useState(false);
   const [showcaseClosingError, setShowcaseClosingError] = useState<string | null>(null);
-  const [closingCopied, setClosingCopied] = useState(false);
+  const [closingCopied, setClosingCopied] = useState<'cli' | 'gui' | false>(false);
 
   const isShowcase = game?.mode === 'showcase';
   const isNormal = game?.mode === 'normal';
@@ -264,24 +264,33 @@ const GameOver: React.FC<GameOverProps> = ({ game, winnerName, onRematch, rematc
               <div className="flex justify-between"><span className="text-muted-foreground">Game Hash:</span><span className="font-mono text-xs break-all">{gameSession.gameHash.substring(0, 16)}...</span></div>
             </div>
             <div className="relative">
-              <div className="bg-muted p-2 pr-10 rounded font-mono text-xs break-all">
-                verus -chain=VRSCTEST signmessage &quot;{playerVerusId}&quot; &quot;{gameSession.gameHash}&quot;
+              <div className="bg-muted p-2 pr-24 rounded font-mono text-xs break-all">
+                signmessage &quot;{playerVerusId}&quot; &quot;{gameSession.gameHash}&quot;
               </div>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(`verus -chain=VRSCTEST signmessage "${playerVerusId}" "${gameSession.gameHash}"`);
-                  setClosingCopied(true);
-                  setTimeout(() => setClosingCopied(false), 2000);
-                }}
-                className="absolute top-1.5 right-1.5 p-1 rounded bg-muted-foreground/10 hover:bg-muted-foreground/20 transition-colors"
-                title="Copy command"
-              >
-                {closingCopied ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-500"><polyline points="20 6 9 17 4 12"/></svg>
-                ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-                )}
-              </button>
+              <div className="absolute top-1 right-1.5 flex flex-col gap-1">
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(`./verus -chain=VRSCTEST signmessage "${playerVerusId}" "${gameSession.gameHash}"`);
+                    setClosingCopied('cli');
+                    setTimeout(() => setClosingCopied(false), 2000);
+                  }}
+                  className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${closingCopied === 'cli' ? 'bg-green-600 text-white' : 'bg-muted-foreground/10 hover:bg-muted-foreground/20 text-muted-foreground'}`}
+                  title="Copy for CLI"
+                >
+                  {closingCopied === 'cli' ? 'Copied!' : 'CLI'}
+                </button>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(`run signmessage "${playerVerusId}" "${gameSession.gameHash}"`);
+                    setClosingCopied('gui');
+                    setTimeout(() => setClosingCopied(false), 2000);
+                  }}
+                  className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${closingCopied === 'gui' ? 'bg-green-600 text-white' : 'bg-muted-foreground/10 hover:bg-muted-foreground/20 text-muted-foreground'}`}
+                  title="Copy for GUI"
+                >
+                  {closingCopied === 'gui' ? 'Copied!' : 'GUI'}
+                </button>
+              </div>
             </div>
             <textarea
               value={showcaseClosingSig}
