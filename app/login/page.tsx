@@ -17,7 +17,7 @@ const Login = () => {
   const [loginVerified, setLoginVerified] = useState(false);
 
   // --- CLI Mode State ---
-  const [cliCopied, setCliCopied] = useState(false);
+  const [cliCopied, setCliCopied] = useState<'cli' | 'gui' | false>(false);
   const [cliChallenge, setCliChallenge] = useState<{ challengeId: string; challenge: string } | null>(null);
   const [cliLoading, setCliLoading] = useState(false);
   const [cliError, setCliError] = useState<string | null>(null);
@@ -175,25 +175,35 @@ const Login = () => {
                     Run this command in your terminal to sign the challenge:
                   </p>
                   <div className="relative group">
-                    <div className="bg-muted p-3 pr-12 rounded-md font-mono text-xs break-all">
-                      verus -chain=VRSCTEST signmessage &quot;{verusIdDisplay}&quot; &quot;{cliChallenge.challenge}&quot;
+                    <div className="bg-muted p-3 pr-24 rounded-md font-mono text-xs break-all">
+                      signmessage &quot;{verusIdDisplay}&quot; &quot;{cliChallenge.challenge}&quot;
                     </div>
-                    <button
-                      onClick={() => {
-                        const cmd = `verus -chain=VRSCTEST signmessage "${verusIdDisplay}" "${cliChallenge.challenge}"`;
-                        navigator.clipboard.writeText(cmd);
-                        setCliCopied(true);
-                        setTimeout(() => setCliCopied(false), 2000);
-                      }}
-                      className="absolute top-2 right-2 p-1.5 rounded bg-muted-foreground/10 hover:bg-muted-foreground/20 transition-colors"
-                      title="Copy command"
-                    >
-                      {cliCopied ? (
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-500"><polyline points="20 6 9 17 4 12"/></svg>
-                      ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-                      )}
-                    </button>
+                    <div className="absolute top-1.5 right-1.5 flex flex-col gap-1">
+                      <button
+                        onClick={() => {
+                          const cmd = `./verus -chain=VRSCTEST signmessage "${verusIdDisplay}" "${cliChallenge.challenge}"`;
+                          navigator.clipboard.writeText(cmd);
+                          setCliCopied('cli');
+                          setTimeout(() => setCliCopied(false), 2000);
+                        }}
+                        className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${cliCopied === 'cli' ? 'bg-green-600 text-white' : 'bg-muted-foreground/10 hover:bg-muted-foreground/20 text-muted-foreground'}`}
+                        title="Copy for CLI: ./verus -chain=VRSCTEST signmessage ..."
+                      >
+                        {cliCopied === 'cli' ? 'Copied!' : 'CLI'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          const cmd = `signmessage "${verusIdDisplay}" "${cliChallenge.challenge}"`;
+                          navigator.clipboard.writeText(cmd);
+                          setCliCopied('gui');
+                          setTimeout(() => setCliCopied(false), 2000);
+                        }}
+                        className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${cliCopied === 'gui' ? 'bg-green-600 text-white' : 'bg-muted-foreground/10 hover:bg-muted-foreground/20 text-muted-foreground'}`}
+                        title="Copy for GUI: signmessage ..."
+                      >
+                        {cliCopied === 'gui' ? 'Copied!' : 'GUI'}
+                      </button>
+                    </div>
                   </div>
                 </div>
 
