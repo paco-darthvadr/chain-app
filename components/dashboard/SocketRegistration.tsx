@@ -25,7 +25,15 @@ export default function SocketRegistration() {
     useEffect(() => {
         (window as any).__gameRedirecting = false;
         const userId = localStorage.getItem('currentUser');
-        if (!userId) return;
+        if (!userId) {
+            // User logged out — disconnect any existing socket
+            const existing = getGlobalSocket();
+            if (existing) {
+                existing.disconnect();
+                setGlobalSocket(null);
+            }
+            return;
+        }
 
         // If a socket already exists and is connected, don't create another
         const existing = getGlobalSocket();
