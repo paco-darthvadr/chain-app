@@ -6,12 +6,12 @@ const fetch = (...args) => import('node-fetch').then(mod => mod.default(...args)
 const allowedOrigins = [
   'http://localhost:3000', // for local development
   'http://localhost:3001', // for Next.js on port 3001
-  'http://192.168.0.162:3000', // for your specific IP
-  'http://192.168.0.162:3001', // for your specific IP on port 3001
+  'http://local-ip-here:3000', // for your specific IP
+  'http://local-ip-here:3001', // for your specific IP on port 3001
   'http://127.0.0.1:3000', // for localhost alternative
   'http://127.0.0.1:3001', // for localhost alternative on port 3001
-  'https://dev.verus-timelock.xyz', // production frontend
-  'https://socket.verus-timelock.xyz' // production socket
+  'https://domain.xyz', // production frontend
+  'https://domain.xyz' // production socket
 ];
 if (process.env.CLIENT_URL) {
   allowedOrigins.push(process.env.CLIENT_URL);
