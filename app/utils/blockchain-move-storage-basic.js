@@ -2,7 +2,7 @@ const axios = require('axios');
 const { VerusIdInterface } = require('verusid-ts-client');
 const { VerusdRpcInterface } = require('verusd-rpc-ts-client');
 const { Identity } = require('verus-typescript-primitives/dist/pbaas');
-const { DATA_TYPE_STRING, DATA_TYPE_DEFINEDGAMEIDKEY, DATA_TYPE_DEFINEDMOVEKEY, DATA_TYPE_DEFINEDGAMEKEY } = require('verus-typescript-primitives/dist/vdxf/keys');
+const { DATA_TYPE_STRING } = require('verus-typescript-primitives/dist/vdxf/keys');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
@@ -225,7 +225,7 @@ class BlockchainMoveStorageBasic {
     }
 
     let moveData = null;
-    let vdxfKey = DATA_TYPE_DEFINEDGAMEKEY.vdxfid;
+    let vdxfKey = DATA_TYPE_STRING.vdxfid;
     let identityObj = null;
     let logObj = {
       move: moveObj,
